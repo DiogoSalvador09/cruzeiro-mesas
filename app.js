@@ -10,6 +10,7 @@ const MAIN_ROWS = [
   ['117', '118', '119', '120'],
   ['124', '123', '122', '121'],
   ['125', '126', '127', '128'],
+  ['129', '130'],
 ];
 const SALA = ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5', 'Sala 6'];
 const WARN_MIN = 5;   // fica laranja
