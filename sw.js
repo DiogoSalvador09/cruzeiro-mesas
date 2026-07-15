@@ -1,7 +1,7 @@
 // Service worker — guarda a "casca" da app para abrir instantâneo.
 // Os dados vêm sempre do Firebase (nunca são apanhados por esta cache).
-const CACHE = 'cruzeiro-v1';
-const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'store.js', 'firebase-config.js', 'manifest.webmanifest', 'assets/logo.jpg'];
+const CACHE = 'cruzeiro-v2';
+const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'store.js', 'firebase-config.js', 'manifest.webmanifest', 'assets/logo.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

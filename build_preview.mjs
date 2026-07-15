@@ -9,8 +9,8 @@ const out = process.argv[2] || join(root, 'preview.html');
 
 const html = readFileSync(join(root, 'index.html'), 'utf8');
 const css = readFileSync(join(root, 'app.css'), 'utf8');
-const logo = readFileSync(join(root, 'assets/logo.jpg'));
-const dataUri = `data:image/jpeg;base64,${logo.toString('base64')}`;
+const logo = readFileSync(join(root, 'assets/logo.png'));
+const dataUri = `data:image/png;base64,${logo.toString('base64')}`;
 
 const stripModules = (src) => src
   .replace(/^import .*?;\s*$/gm, '')   // imports locais (o import() dinâmico do gstatic fica, mas nunca corre sem config)
