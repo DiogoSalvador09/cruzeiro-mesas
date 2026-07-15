@@ -180,22 +180,21 @@ function openAddTable(section) {
 }
 function closeAdd() { $('addScrim').classList.add('hidden'); $('addBox').classList.add('hidden'); }
 
-/* ---- arrastar para trocar de sítio: rato = já; toque = pressiona e arrasta ---- */
+/* ---- arrastar para trocar de sítio (rato e toque, imediato) ---- */
 let drag = null;
 function onDragStart(e, label, section) {
   if (!editMode || (e.target.closest && e.target.closest('.tile-x'))) return;
-  drag = { label, section, x0: e.clientX, y0: e.clientY, el: e.currentTarget, started: false, armed: e.pointerType !== 'touch', target: null, timer: null };
-  if (e.pointerType === 'touch') drag.timer = setTimeout(() => { if (drag) { drag.armed = true; navigator.vibrate && navigator.vibrate(8); } }, 300);
+  drag = { label, section, x0: e.clientX, y0: e.clientY, el: e.currentTarget, started: false, target: null };
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* iOS antigo */ }
   window.addEventListener('pointermove', onDragMove, { passive: false });
   window.addEventListener('pointerup', onDragEnd, { once: true });
-  window.addEventListener('pointercancel', onDragEnd, { once: true });
+  window.addEventListener('pointercancel', onDragCancel, { once: true });
 }
 function onDragMove(e) {
   if (!drag) return;
   const dx = e.clientX - drag.x0; const dy = e.clientY - drag.y0;
   if (!drag.started) {
-    if (!drag.armed) { if (Math.hypot(dx, dy) > 10) endDrag(false); return; } // toque a deslizar = scroll
-    if (Math.hypot(dx, dy) < 6) return;
+    if (Math.hypot(dx, dy) < 6) return; // ainda é um toque, não um arrasto
     const r = drag.el.getBoundingClientRect();
     const c = drag.el.cloneNode(true);
     c.classList.remove('editing'); c.classList.add('drag-clone'); // mantém cor de estado
@@ -216,10 +215,12 @@ function onDragMove(e) {
   e.preventDefault();
 }
 function onDragEnd() { endDrag(true); }
+function onDragCancel() { endDrag(false); }
 function endDrag(commit) {
   window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  window.removeEventListener('pointercancel', onDragCancel);
   if (!drag) return;
-  if (drag.timer) clearTimeout(drag.timer);
   drag.clone && drag.clone.remove();
   document.querySelectorAll('.tile.drag-src,.tile.drop-target').forEach((t) => t.classList.remove('drag-src', 'drop-target'));
   if (commit && drag.started && drag.target && drag.target !== drag.label) {
@@ -771,6 +772,42 @@ async function seedPreview() {
   }
 }
 
+/* ------------------------------ Modo TV ----------------------------- */
+let tvActive = false;
+function renderTV() {
+  if (!tvActive) return;
+  const waiting = Object.values(live).filter((g) => !g.attendedAt).sort((a, b) => a.arrivedAt - b.arrivedAt);
+  const next = waiting[0];
+  const nx = $('tvNext');
+  if (next) {
+    const mins = minsSince(next.arrivedAt);
+    const sev = mins >= CRIT_MIN ? 'crit' : mins >= WARN_MIN ? 'warn' : '';
+    nx.className = `tv-next ${sev}`;
+    nx.innerHTML = `<div class="tv-eyebrow">Próxima mesa</div>
+      <div class="tv-num">${tablesLabel(next.tables)}</div>
+      <div class="tv-meta">${paxWord(next.pax)}${next.lang ? ` · ${LANG_WORD[next.lang]}` : ''} · entrou às ${fmtTime(next.arrivedAt)}</div>
+      <div class="tv-wait">${mins} min de espera</div>`;
+  } else {
+    nx.className = 'tv-next calm';
+    nx.innerHTML = '<div class="tv-eyebrow">Serviço</div><div class="tv-calm">Sala tranquila</div><div class="tv-meta">Mar calmo · ninguém à espera 🌊</div>';
+  }
+  const rest = waiting.slice(1);
+  $('tvQueue').innerHTML = rest.length
+    ? `<div class="tv-qtitle">A seguir</div>${rest.map((g, i) => `<div class="tv-qrow"><span class="tv-qpos">${i + 2}º</span><span class="tv-qtables">${tablesLabel(g.tables)}</span><span class="tv-qmeta">${paxWord(g.pax)}</span><span class="tv-qwait">${minsSince(g.arrivedAt)} min</span></div>`).join('')}`
+    : '';
+}
+function enterTV() {
+  tvActive = true;
+  $('tv').classList.remove('hidden'); $('tv').setAttribute('aria-hidden', 'false');
+  if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+  renderTV();
+}
+function exitTV() {
+  tvActive = false;
+  $('tv').classList.add('hidden'); $('tv').setAttribute('aria-hidden', 'true');
+  if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+
 /* --------------------------- código de acesso ----------------------- */
 // Porta leve: mantém curiosos e enganos fora e é lembrada por aparelho.
 // NÃO é segurança a sério da base de dados (a config é pública) — para trancar
@@ -817,7 +854,7 @@ async function main() {
     connLabel.textContent = window.__PREVIEW__ ? 'demo' : 'só neste aparelho';
   }
   store.onConfig(applyConfig); // disposição de mesas sincronizada
-  store.onLive((v) => { live = v || {}; renderMap(); renderQueue(); checkAlerts(); if (currentView() === 'day') renderDay(); });
+  store.onLive((v) => { live = v || {}; renderMap(); renderQueue(); checkAlerts(); renderTV(); if (currentView() === 'day') renderDay(); });
   store.onToday((k, v) => {
     todayLog = v || {};
     pushDineSamples(todayLog); // aprende tempos à mesa à medida que as mesas libertam
@@ -853,6 +890,9 @@ async function main() {
   $('confirmWipe').addEventListener('click', doWipe);
   $('editBtn').addEventListener('click', toggleEdit);
   $('resetBtn').addEventListener('click', resetTables);
+  $('tvBtn').addEventListener('click', enterTV);
+  $('tvExit').addEventListener('click', exitTV);
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && tvActive) exitTV(); });
   $('addCancel').addEventListener('click', closeAdd);
   $('addScrim').addEventListener('click', closeAdd);
   $('addConfirm').addEventListener('click', () => { addTable($('addInput').value, addSection); closeAdd(); });
@@ -866,10 +906,13 @@ async function main() {
   });
 
   const clock = $('clock');
-  const tickClock = () => { clock.textContent = new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }); };
+  const tickClock = () => {
+    const t = new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+    clock.textContent = t; $('tvClock').textContent = t;
+  };
   tickClock(); setInterval(tickClock, 15000);
 
-  setInterval(() => { renderMap(); renderQueue(); checkAlerts(); if (activeId) renderGroupPane(); }, 20000);
+  setInterval(() => { renderMap(); renderQueue(); checkAlerts(); renderTV(); if (activeId) renderGroupPane(); }, 20000);
 
   setView(localStorage.getItem('cz_view') || 'map');
 

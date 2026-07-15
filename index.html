@@ -120,7 +120,10 @@
         </table>
         <div id="daysEmpty" class="empty-sub hidden">Ainda não há histórico — aparece a partir de amanhã.</div>
       </div>
-      <button id="wipeBtn" class="wipe-btn">Limpar dados de teste</button>
+      <div class="day-actions">
+        <button id="tvBtn" class="tv-btn">📺 Modo TV</button>
+        <button id="wipeBtn" class="wipe-btn">Limpar dados de teste</button>
+      </div>
     </div>
   </section>
 </main>
@@ -215,6 +218,19 @@
   <div class="confirm-actions">
     <button class="btn ghost" id="confirmCancel">Cancelar</button>
     <button class="btn danger" id="confirmWipe">Apagar tudo</button>
+  </div>
+</div>
+
+<!-- Modo TV (ecrã grande / parede) -->
+<div id="tv" class="tv hidden" aria-hidden="true">
+  <div class="tv-head">
+    <div class="tv-brand">O Cruzeiro</div>
+    <div class="tv-clock" id="tvClock"></div>
+    <button id="tvExit" class="tv-exit">Sair ✕</button>
+  </div>
+  <div class="tv-body">
+    <div class="tv-next" id="tvNext"></div>
+    <div class="tv-queue" id="tvQueue"></div>
   </div>
 </div>
 
