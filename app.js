@@ -8,7 +8,7 @@ const MAIN_ROWS = [
   ['109', '110', '111', '112'],
   ['116', '115', '114', '113'],
   ['117', '118', '119', '120'],
-  ['124', null, '122', '121'],
+  ['124', '123', '122', '121'],
   ['125', '126', '127', '128'],
 ];
 const SALA = ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5', 'Sala 6'];
@@ -31,7 +31,8 @@ const tiles = {};         // mesa -> elemento
 
 const $ = (id) => document.getElementById(id);
 const fmtTime = (ts) => new Date(ts).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
-const minsSince = (ts) => Math.floor((Date.now() - ts) / 60000);
+const nowMs = () => (store && store.nowMs ? store.nowMs() : Date.now()); // hora corrigida pelo servidor
+const minsSince = (ts) => Math.floor((nowMs() - ts) / 60000);
 const sortTables = (arr) => [...arr].sort((a, b) => {
   const na = parseInt(a, 10); const nb = parseInt(b, 10);
   if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
@@ -220,7 +221,7 @@ function paintBig() {
 
 async function confirmNew(pax) {
   const g = {
-    id: newId(), tables: sortTables(selection), pax, arrivedAt: Date.now(),
+    id: newId(), tables: sortTables(selection), pax, arrivedAt: store.stamp(),
     ...(selLang ? { lang: selLang } : {}),
   };
   closeSheet();
@@ -231,14 +232,14 @@ async function confirmNew(pax) {
 /* ------------------------------ ações ------------------------------- */
 async function attend(id) {
   const g = live[id]; if (!g) return;
-  await store.updateGroup(id, { attendedAt: Date.now() });
+  await store.updateGroup(id, { attendedAt: store.stamp() });
   lastAction = { undo: () => store.updateGroup(id, { attendedAt: null }) };
   toast(`Mesa ${tablesLabel(g.tables)} atendida ✓`, true);
 }
 async function freeTable(id) {
   const g = live[id]; if (!g) return;
   const snapshot = { ...g };
-  await store.freeGroup(g, Date.now());
+  await store.freeGroup(g, store.stamp());
   lastAction = { undo: () => store.restoreGroup(snapshot) };
   toast(`Mesa ${tablesLabel(g.tables)} libertada`, true);
 }
@@ -286,6 +287,26 @@ function paintBell() {
   b.title = bellOn ? 'Sino ligado — toca aos 10 min sem atendimento' : 'Toca quando uma mesa passa dos 10 min';
 }
 
+/* --------------------------- tema claro/escuro ---------------------- */
+const MOON_SVG = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+const SUN_SVG = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+function effectiveTheme() {
+  return document.documentElement.dataset.theme
+    || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+}
+function paintTheme() {
+  const dark = effectiveTheme() === 'dark';
+  const b = $('themeBtn');
+  b.innerHTML = dark ? SUN_SVG : MOON_SVG;
+  b.title = dark ? 'Mudar para tema claro' : 'Mudar para tema escuro';
+}
+function toggleTheme() {
+  const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('cz_theme', next);
+  document.documentElement.dataset.theme = next;
+  paintTheme();
+}
+
 function checkAlerts() {
   // muda de dia → esquece os alertas de ontem
   if (!localStorage.getItem(alertedKey())) alerted = new Set();
@@ -315,11 +336,39 @@ function toast(msg, undoable = false) {
   toastTimer = setTimeout(() => $('toast').classList.add('hidden'), 6000);
 }
 
+/* --------------------- próxima mesa (destaque) ---------------------- */
+function renderSpotlight(waiting) {
+  const spot = $('spotlight');
+  const next = waiting[0];
+  if (!next) {
+    spot.className = 'spotlight calm';
+    spot.innerHTML = '<div class="spot-eyebrow">Serviço</div><div class="spot-calm">Ninguém à espera</div><div class="spot-meta">A sala está em dia.</div>';
+    return;
+  }
+  const mins = minsSince(next.arrivedAt);
+  const sev = mins >= CRIT_MIN ? 'crit' : mins >= WARN_MIN ? 'warn' : '';
+  spot.className = `spotlight active ${sev}`;
+  const more = waiting.length > 1 ? ` · mais ${waiting.length - 1} à espera` : '';
+  spot.innerHTML = `
+    <div class="spot-eyebrow">Próxima mesa</div>
+    <div class="spot-main" role="button" tabindex="0" aria-label="Abrir mesa ${tablesLabel(next.tables)}">
+      <div class="spot-tables">${tablesLabel(next.tables)}${langBadge(next)}</div>
+      <div class="spot-wait">${mins} min</div>
+    </div>
+    <div class="spot-meta">${paxWord(next.pax)} · entrou às ${fmtTime(next.arrivedAt)}${more}</div>
+    <button class="btn primary big spot-attend">Atendida ✓</button>`;
+  spot.querySelector('.spot-attend').addEventListener('click', () => attend(next.id));
+  const main = spot.querySelector('.spot-main');
+  main.addEventListener('click', () => openGroupSheet(next.id));
+  main.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGroupSheet(next.id); } });
+}
+
 /* ------------------------------- fila ------------------------------- */
 function renderQueue() {
   const groups = Object.values(live);
   const waiting = groups.filter((g) => !g.attendedAt).sort((a, b) => a.arrivedAt - b.arrivedAt);
   const seated = groups.filter((g) => g.attendedAt).sort((a, b) => a.attendedAt - b.attendedAt);
+  renderSpotlight(waiting);
 
   const badge = $('queueBadge');
   badge.textContent = waiting.length;
@@ -526,6 +575,9 @@ async function main() {
   $('bigConfirm').addEventListener('click', () => confirmNew(bigVal));
   $('bellBtn').addEventListener('click', toggleBell);
   paintBell();
+  $('themeBtn').addEventListener('click', toggleTheme);
+  paintTheme();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!localStorage.getItem('cz_theme')) paintTheme(); });
   $('paxMinus').addEventListener('click', () => stepPax(-1));
   $('paxPlus').addEventListener('click', () => stepPax(1));
   $('toastUndo').addEventListener('click', async () => {

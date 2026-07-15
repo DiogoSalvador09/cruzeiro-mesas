@@ -125,6 +125,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 .clock{font-family:var(--num);font-size:24px;font-weight:600;font-variant-numeric:lining-nums tabular-nums;color:var(--sign-ink);display:none;letter-spacing:.03em}
 .bell{padding:6px 7px;border-radius:8px;color:var(--sign-sub);opacity:.6;display:flex;align-items:center;transition:color .2s,opacity .2s}
 .bell.on{color:var(--sign-gold);opacity:1;background:rgba(200,169,97,.12)}
+.theme-btn{padding:6px 7px;border-radius:8px;color:var(--sign-sub);opacity:.7;display:flex;align-items:center;transition:color .2s,opacity .2s}
+.theme-btn:hover{opacity:1;color:var(--sign-ink)}
 .conn{display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.04em;color:var(--sign-sub)}
 .conn .dot{width:8px;height:8px;border-radius:50%;background:var(--sign-sub)}
 .conn.online .dot{background:#4FB0C6;box-shadow:0 0 8px rgba(79,176,198,.85)}
@@ -208,6 +210,21 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
   writing-mode:vertical-rl;font-size:9px;font-weight:600;letter-spacing:.24em;color:var(--ink-3)}
 
 /* ---------- fila ---------- */
+.spotlight{border-radius:var(--radius);border:1px solid var(--hair);background:var(--surface);box-shadow:var(--card-shadow);padding:16px 18px 17px;margin-bottom:22px}
+.spotlight.calm{opacity:.82}
+.spotlight.active{border-left:3px solid var(--brass)}
+.spotlight.warn{border-left-color:var(--warn)}
+.spotlight.crit{border-left-color:var(--garnet)}
+.spot-eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--brass);margin-bottom:9px}
+.spot-main{display:flex;align-items:baseline;justify-content:space-between;gap:12px;cursor:pointer}
+.spot-tables{font-family:var(--num);font-size:42px;font-weight:600;line-height:.95;font-variant-numeric:lining-nums tabular-nums}
+.spot-wait{font-family:var(--num);font-size:25px;font-weight:600;color:var(--ink-2);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.spotlight.warn .spot-wait{color:var(--warn)}
+.spotlight.crit .spot-wait{color:var(--garnet);animation:pulse 1.7s ease-in-out infinite}
+.spot-meta{font-size:13px;color:var(--ink-2);margin-top:7px;font-variant-numeric:lining-nums tabular-nums}
+.spot-attend{margin-top:15px}
+.spot-calm{font-family:var(--num);font-size:27px;color:var(--ink);line-height:1}
+
 .queue-wrap{display:flex;flex-direction:column;gap:26px}
 .queue-col h2{margin:0 0 12px}
 .count{color:var(--ink-3);font-weight:600;letter-spacing:0}
@@ -330,7 +347,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 /* ---------- movimento reduzido ---------- */
 @media (prefers-reduced-motion: reduce){
   .tile,.tile.wait,.chip.crit,.title h1,.sheet:not(.hidden),.sheet-scrim:not(.hidden),
-  .toast:not(.hidden),body::before{animation:none}
+  .toast:not(.hidden),body::before,.spotlight.crit .spot-wait{animation:none}
 }
 
 /* ---------- ecrã largo (PC do restaurante) ---------- */

@@ -12,15 +12,30 @@ export const newId = () => Date.now().toString(36) + Math.random().toString(36).
 async function firebaseStore(cfg) {
   const { initializeApp } = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
   const {
-    getDatabase, ref, onValue, set, update, remove, get, query, orderByKey, limitToLast,
+    getDatabase, ref, onValue, set, update, remove, get, query, orderByKey, limitToLast, serverTimestamp,
   } = await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js');
 
   const db = getDatabase(initializeApp(cfg));
   const clean = (g) => { const o = { ...g }; Object.keys(o).forEach((k) => o[k] == null && delete o[k]); return o; };
 
+  // relógio partilhado: usa a hora do servidor para todos concordarem na ordem de chegada
+  let skew = 0;
+  onValue(ref(db, '.info/serverTimeOffset'), (s) => { skew = s.val() || 0; });
+  const MIRROR = 'cz_mirror';
+
   return {
     mode: 'firebase',
-    onLive(cb) { onValue(ref(db, 'live'), (s) => cb(s.val() || {})); },
+    stamp: () => serverTimestamp(),
+    nowMs: () => Date.now() + skew,
+    onLive(cb) {
+      // pinta já o último quadro guardado (aguenta recarregar sem net), depois o ao-vivo
+      try { const m = JSON.parse(localStorage.getItem(MIRROR) || 'null'); if (m) cb(m); } catch { /* vazio */ }
+      onValue(ref(db, 'live'), (s) => {
+        const v = s.val() || {};
+        try { localStorage.setItem(MIRROR, JSON.stringify(v)); } catch { /* cheio */ }
+        cb(v);
+      });
+    },
     onToday(cb) {
       let off = null;
       const attach = () => {
@@ -69,6 +84,8 @@ function localStore() {
 
   return {
     mode: 'local',
+    stamp: () => Date.now(),
+    nowMs: () => Date.now(),
     onLive(cb) { liveCbs.push(cb); cb(read(LIVE)); },
     onToday(cb) { todayCbs.push(cb); cb(dayKey(), read(DAYS)[dayKey()] || {}); },
     onConnection(cb) { cb(true); },

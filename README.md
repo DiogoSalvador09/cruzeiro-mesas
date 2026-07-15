@@ -20,6 +20,11 @@ e o Rui vê o badge ES/EN na fila antes de ir à mesa.
 escolhe as mesas, **Concluir ✓**. **Grupos grandes:** **Grupo maior ＋** abre um contador
 até 60 pessoas (o teclado normal vai só até 12).
 
+**Próxima mesa:** no topo da Fila (e ao lado do mapa no PC) há um destaque grande com a mesa
+que o Rui deve atender a seguir — número, espera e um botão **Atendida ✓**. O ☀/☾ no topo
+força tema claro/escuro (por aparelho); a hora de chegada vem do servidor, por isso a ordem
+é igual em todos os aparelhos mesmo com relógios trocados.
+
 ## Sincronização (Firebase, grátis)
 
 Sem configuração a app funciona só num aparelho (modo local). Para sincronizar telemóveis + PC:
