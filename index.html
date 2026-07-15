@@ -42,6 +42,7 @@
     <span id="clock" class="clock" aria-hidden="true"></span>
     <button id="themeBtn" class="theme-btn" aria-label="Mudar tema claro/escuro"></button>
     <button id="bellBtn" class="bell" aria-label="Alerta sonoro aos 10 minutos" title="Toca quando uma mesa passa dos 10 min"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></button>
+    <button id="helpBtn" class="help-btn" aria-label="Ajuda" title="Como se usa">?</button>
     <span id="connDot" class="conn" title="Estado da ligação"><span class="dot"></span><span id="connLabel">local</span></span>
   </div>
 </header>
@@ -269,6 +270,37 @@
   <div class="confirm-actions">
     <button class="btn ghost" id="confirmCancel">Cancelar</button>
     <button class="btn danger" id="confirmWipe">Apagar tudo</button>
+  </div>
+</div>
+
+<!-- barra "nova versão" -->
+<div class="join-bar hidden" id="updateBar">
+  <div class="join-bar-txt">✨ Nova versão disponível</div>
+  <button id="updateReload" class="join-done">Atualizar</button>
+</div>
+
+<!-- ajuda / como se usa -->
+<div id="help" class="help-overlay hidden" role="dialog" aria-modal="true" aria-label="Ajuda">
+  <div class="help-card">
+    <div class="help-head">
+      <div class="help-title">Como se usa</div>
+      <button id="helpClose" class="sheet-close" aria-label="Fechar">✕</button>
+    </div>
+    <div class="help-body">
+      <div class="help-item"><b>Sentar gente</b> — toca na mesa no mapa e no nº de pessoas. Dois toques, mais nada.</div>
+      <div class="help-item"><b>Juntar mesas</b> — na folha, «＋ Juntar outra mesa» e toca nas mesas a juntar.</div>
+      <div class="help-item"><b>Grupo grande</b> — «Grupo maior ＋» abre um contador até 60 pessoas.</div>
+      <div class="help-item"><b>Estrangeiros</b> — marca 🇪🇸 / 🇬🇧 ao registar; o Rui vê o aviso antes de ir à mesa.</div>
+      <div class="help-item"><b>Fila</b> — a mesa que o Rui deve atender a seguir aparece em destaque. «Atendida ✓» quando tira o pedido.</div>
+      <div class="help-item"><b>Reutilizar mesa</b> — toca numa mesa já atendida → «Sentar novo grupo».</div>
+      <div class="help-item"><b>Libertar</b> — quando saem. Se houver gente à espera, a app avisa para sentar já.</div>
+      <div class="help-item"><b>Lista de espera</b> — quando está cheio, junta nome + pessoas. Ao vagar uma mesa, «Sentar» e escolhe onde.</div>
+      <div class="help-item"><b>Sino 🔔</b> — no topo; toca quando uma mesa passa dos 10 min sem atendimento.</div>
+      <div class="help-item"><b>Modo TV 📺</b> — no separador Dia; ecrã grande para uma TV na parede.</div>
+      <div class="help-item"><b>Editar mesas</b> — no mapa, «✎ Editar»: arrasta para trocar, ✕ remove, ＋ adiciona.</div>
+      <div class="help-item"><b>Enganos</b> — quase tudo tem «Anular». No Dia dá para eliminar grupos e «Limpar dados de teste».</div>
+      <div class="help-item"><b>Código</b> — cada aparelho mete o código uma vez e fica desbloqueado.</div>
+    </div>
   </div>
 </div>
 

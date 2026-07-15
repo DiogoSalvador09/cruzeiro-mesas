@@ -188,6 +188,22 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 .bell.on{color:var(--sign-gold);opacity:1;background:rgba(200,169,97,.12)}
 .theme-btn{padding:6px 7px;border-radius:8px;color:var(--sign-sub);opacity:.7;display:flex;align-items:center;transition:color .2s,opacity .2s}
 .theme-btn:hover{opacity:1;color:var(--sign-ink)}
+.help-btn{width:24px;height:24px;border-radius:50%;border:1px solid var(--sign-line);color:var(--sign-sub);font-weight:700;font-size:13px;line-height:1;opacity:.8;transition:color .2s,opacity .2s}
+.help-btn:hover{opacity:1;color:var(--sign-gold);border-color:var(--sign-gold)}
+
+/* ---------- ajuda / como se usa ---------- */
+.help-overlay{position:fixed;inset:0;z-index:70;background:rgba(6,8,12,.6);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;padding:0}
+.help-overlay:not(.hidden){animation:scrimIn .3s ease both}
+.help-card{background:var(--surface);width:100%;max-width:560px;max-height:86vh;display:flex;flex-direction:column;border-radius:18px 18px 0 0;border:1px solid var(--hair);border-bottom:0;box-shadow:0 -14px 44px rgba(0,0,0,.4)}
+.help-card{animation:sheetUp .38s cubic-bezier(.32,.72,.28,1) both}
+.help-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px;border-bottom:1px solid var(--hair)}
+.help-title{font-family:var(--num);font-size:24px;font-weight:600}
+.help-body{overflow-y:auto;padding:8px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column}
+.help-item{padding:12px 0;border-bottom:1px solid var(--hair);font-size:14px;line-height:1.5;color:var(--ink-2)}
+.help-item:last-child{border-bottom:0}
+.help-item b{color:var(--ink);font-weight:700}
+@media (min-width:1020px){.help-overlay{align-items:center}.help-card{border-radius:18px;border-bottom:1px solid var(--hair)}}
+@media (prefers-reduced-motion: reduce){.help-overlay:not(.hidden),.help-card{animation:none}}
 .conn{display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.04em;color:var(--sign-sub)}
 .conn .dot{width:8px;height:8px;border-radius:50%;background:var(--sign-sub)}
 .conn.online .dot{background:#4FB0C6;box-shadow:0 0 8px rgba(79,176,198,.85)}

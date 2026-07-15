@@ -18,6 +18,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== location.origin) return; // firebase/gstatic passam direto
+  if (url.pathname.endsWith('version.json')) return; // verificação de versão: sempre da rede
   e.respondWith(
     fetch(e.request)
       .then((res) => {

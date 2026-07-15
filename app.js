@@ -899,6 +899,22 @@ async function seedPreview() {
   }
 }
 
+/* ---------------------- atualização automática ---------------------- */
+let loadedVer = null;
+async function checkVersion() {
+  try {
+    const r = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (loadedVer === null) { loadedVer = data.v; return; } // 1ª vez: guarda a versão atual
+    if (data.v && data.v !== loadedVer) $('updateBar').classList.remove('hidden'); // mudou → avisa
+  } catch { /* offline — ignora */ }
+}
+
+/* ------------------------------ ajuda ------------------------------- */
+function openHelp() { $('help').classList.remove('hidden'); }
+function closeHelp() { $('help').classList.add('hidden'); }
+
 /* ------------------------------ Modo TV ----------------------------- */
 let tvActive = false;
 function renderTV() {
@@ -1020,7 +1036,11 @@ async function main() {
   $('resetBtn').addEventListener('click', resetTables);
   $('tvBtn').addEventListener('click', enterTV);
   $('tvExit').addEventListener('click', exitTV);
-  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && tvActive) exitTV(); });
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (tvActive) exitTV();
+    else if (!$('help').classList.contains('hidden')) closeHelp();
+  });
   // lista de espera
   $('waitAddBtn').addEventListener('click', openWaitAdd);
   $('waitCancel').addEventListener('click', closeWaitAdd);
@@ -1036,6 +1056,10 @@ async function main() {
   $('seatDone').addEventListener('click', confirmSeat);
   $('readySeat').addEventListener('click', () => { if (pendingReady) startSeating(pendingReady.waitId, pendingReady.table); });
   $('readyDismiss').addEventListener('click', hideReady);
+  $('helpBtn').addEventListener('click', openHelp);
+  $('helpClose').addEventListener('click', closeHelp);
+  $('help').addEventListener('click', (e) => { if (e.target === $('help')) closeHelp(); });
+  $('updateReload').addEventListener('click', () => location.reload());
   $('addCancel').addEventListener('click', closeAdd);
   $('addScrim').addEventListener('click', closeAdd);
   $('addConfirm').addEventListener('click', () => { addTable($('addInput').value, addSection); closeAdd(); });
@@ -1061,6 +1085,11 @@ async function main() {
 
   if ('serviceWorker' in navigator && !window.__PREVIEW__ && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  if (!window.__PREVIEW__ && location.protocol.startsWith('http')) {
+    checkVersion();
+    setInterval(checkVersion, 150000); // verifica nova versão a cada ~2,5 min
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
   }
 }
 
