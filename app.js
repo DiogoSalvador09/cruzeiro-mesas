@@ -25,6 +25,10 @@ let selLang = null;       // 'es' | 'en' | null (null = português)
 let joining = false;      // modo "juntar mesas" (mapa tocável, folha escondida)
 let bigVal = 14;          // stepper de grupo grande
 let reseatId = null;      // grupo a arquivar quando o novo for confirmado (sentar novo grupo)
+let waitlist = {};        // lista de espera de mesa (id -> {id,name,pax,addedAt,lang?})
+let seatingWait = null;   // a sentar alguém da lista de espera (escolhe mesas no mapa)
+let waitVal = 2;          // contador de pessoas no diálogo de espera
+let waitLang = null;
 const LANG_WORD = { es: 'Espanhol', en: 'Inglês' };
 let activeId = null;      // grupo aberto na folha
 let lastAction = null;    // para o Anular
@@ -260,6 +264,12 @@ function renderMap() {
 /* --------------------------- interações ----------------------------- */
 function onTileTap(t) {
   if (editMode) return; // em edição, o tile só remove (pelo ✕); toque no corpo não faz nada
+  if (seatingWait) { // a sentar alguém da lista de espera
+    if (groupOf(t)) return; // mesa ocupada
+    selection = selection.includes(t) ? selection.filter((x) => x !== t) : [...selection, t];
+    updateSeatBar(); renderMap();
+    return;
+  }
   if (joining) {
     // modo juntar: alterna mesas livres na seleção (ocupadas ignoram-se)
     if (groupOf(t)) return;
@@ -319,7 +329,8 @@ function renderGroupPane() {
   const attended = !!g.attendedAt;
   const langWord = g.lang ? `${LANG_WORD[g.lang]} · ` : '';
   const hint = attended ? freeHint(g) : '';
-  $('groupMeta').textContent = langWord + (attended
+  const nameWord = g.name ? `${g.name} · ` : '';
+  $('groupMeta').textContent = nameWord + langWord + (attended
     ? `Na sala desde ${fmtTime(g.attendedAt)} · atendida há ${minsSince(g.attendedAt)} min${hint ? ` · ${hint}` : ''}`
     : `À espera há ${minsSince(g.arrivedAt)} min · entrou às ${fmtTime(g.arrivedAt)}`);
   paintLangRow($('langRowGroup'), g.lang || null);
@@ -533,13 +544,85 @@ function renderSpotlight(waiting) {
       <div class="spot-tables">${tablesLabel(next.tables)}${langBadge(next)}</div>
       <div class="spot-wait">${mins} min</div>
     </div>
-    <div class="spot-meta">${paxWord(next.pax)} · entrou às ${fmtTime(next.arrivedAt)}${more}</div>
+    <div class="spot-meta">${next.name ? `<b>${next.name}</b> · ` : ''}${paxWord(next.pax)} · entrou às ${fmtTime(next.arrivedAt)}${more}</div>
     <button class="btn primary big spot-attend">Atendida ✓</button>`;
   spot.querySelector('.spot-attend').addEventListener('click', () => attend(next.id));
   const main = spot.querySelector('.spot-main');
   main.addEventListener('click', () => openGroupSheet(next.id));
   main.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openGroupSheet(next.id); } });
 }
+
+/* -------------------- lista de espera de mesa ----------------------- */
+function renderWait() {
+  const parties = Object.values(waitlist).sort((a, b) => a.addedAt - b.addedAt);
+  const badge = $('waitBadge');
+  badge.textContent = parties.length; badge.classList.toggle('hidden', !parties.length);
+  $('waitListCount').textContent = parties.length ? `· ${parties.length}` : '';
+  const list = $('waitList'); list.innerHTML = '';
+  parties.forEach((w, i) => {
+    const card = document.createElement('div');
+    card.className = 'qcard waiting';
+    card.innerHTML = `
+      <span class="pos">${i + 1}º</span>
+      <div class="who">
+        <div class="tables">${w.name || 'Sem nome'}${w.lang ? `<span class="lang-badge">${w.lang.toUpperCase()}</span>` : ''}</div>
+        <div class="meta">${paxWord(w.pax)} · há ${minsSince(w.addedAt)} min</div>
+      </div>
+      <button class="attend seat-btn">Sentar</button>
+      <button class="t-del wait-del" aria-label="Remover da espera">✕</button>`;
+    card.querySelector('.seat-btn').addEventListener('click', () => startSeating(w.id));
+    card.querySelector('.wait-del').addEventListener('click', () => removeWaitParty(w.id));
+    list.appendChild(card);
+  });
+  $('waitList').classList.toggle('hidden', !parties.length);
+  $('waitEmpty').classList.toggle('hidden', !!parties.length);
+}
+function removeWaitParty(id) {
+  const w = waitlist[id]; if (!w) return;
+  store.removeWait(id);
+  lastAction = { undo: () => store.addWait(w) };
+  toast(`${w.name || 'Grupo'} saiu da espera`, true);
+}
+function openWaitAdd() {
+  waitVal = 2; waitLang = null;
+  $('waitName').value = ''; paintLangRow($('waitLang'), null); $('waitValue').textContent = waitVal;
+  $('waitScrim').classList.remove('hidden'); $('waitBox').classList.remove('hidden');
+  setTimeout(() => $('waitName').focus(), 60);
+}
+function closeWaitAdd() { $('waitScrim').classList.add('hidden'); $('waitBox').classList.add('hidden'); }
+function stepWait(d) { waitVal = Math.max(1, Math.min(60, waitVal + d)); $('waitValue').textContent = waitVal; }
+async function confirmWaitAdd() {
+  const name = $('waitName').value.trim();
+  const w = { id: newId(), name, pax: waitVal, addedAt: store.stamp(), ...(waitLang ? { lang: waitLang } : {}) };
+  closeWaitAdd();
+  await store.addWait(w);
+  toast(`${name || 'Grupo'} · ${paxWord(waitVal)} à espera`);
+}
+
+// sentar alguém da espera: escolhe a(s) mesa(s) no mapa e confirma
+function startSeating(id) {
+  const w = waitlist[id]; if (!w) return;
+  seatingWait = { ...w }; selection = [];
+  setView('map');
+  $('seatBar').classList.remove('hidden');
+  updateSeatBar(); renderMap();
+}
+function updateSeatBar() {
+  if (!seatingWait) return;
+  const who = `${seatingWait.name || 'Grupo'} (${seatingWait.pax}p)`;
+  $('seatBarTxt').innerHTML = selection.length ? `Sentar <b>${who}</b> · Mesa ${tablesLabel(selection)}` : `Escolhe a mesa para <b>${who}</b>`;
+}
+async function confirmSeat() {
+  if (!seatingWait || !selection.length) { cancelSeating(); return; }
+  const w = seatingWait;
+  const g = { id: newId(), tables: sortTables(selection), pax: w.pax, arrivedAt: store.stamp(), ...(w.name ? { name: w.name } : {}), ...(w.lang ? { lang: w.lang } : {}) };
+  seatingWait = null; selection = []; $('seatBar').classList.add('hidden');
+  await store.addGroup(g);
+  await store.removeWait(w.id);
+  toast(`${w.name || 'Grupo'} sentado na Mesa ${tablesLabel(g.tables)} ✓`);
+  renderMap();
+}
+function cancelSeating() { seatingWait = null; selection = []; $('seatBar').classList.add('hidden'); renderMap(); }
 
 /* ------------------------------- fila ------------------------------- */
 function renderQueue() {
@@ -563,6 +646,7 @@ function renderQueue() {
     card.innerHTML = `
       <span class="pos">${i + 1}º</span>
       <div class="who">
+        ${g.name ? `<div class="who-name">${g.name}</div>` : ''}
         <div class="tables">${tablesLabel(g.tables)}${langBadge(g)}</div>
         <div class="meta">${paxWord(g.pax)} · entrou às ${fmtTime(g.arrivedAt)}</div>
       </div>
@@ -582,6 +666,7 @@ function renderQueue() {
     const hintHtml = hint ? `<span class="chip soft">${hint}</span>` : '';
     row.innerHTML = `
       <div class="who">
+        ${g.name ? `<div class="who-name">${g.name}</div>` : ''}
         <div class="tables">${tablesLabel(g.tables)}${langBadge(g)}</div>
         <div class="meta">${paxWord(g.pax)} · atendida há ${minsSince(g.attendedAt)} min</div>
       </div>
@@ -746,8 +831,10 @@ function setView(v) {
   });
   document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === `view-${v}`));
   document.querySelector('.views').classList.toggle('day-active', v === 'day');
+  document.querySelector('.views').classList.toggle('wait-active', v === 'wait');
   localStorage.setItem('cz_view', v);
   if (v === 'day') renderDay();
+  if (v === 'wait') renderWait();
 }
 
 /* ---------------------------- demo (preview) ------------------------ */
@@ -766,6 +853,8 @@ async function seedPreview() {
   await store.addGroup(mk(['101'], 4, 2, null, null, 'es'));
   await store.addGroup(mk(['120'], 3, 38, 31, null));
   await store.addGroup(mk(['Sala 2'], 6, 55, 49, null));
+  await store.addWait({ id: newId(), name: 'Silva', pax: 4, addedAt: now - 9 * M });
+  await store.addWait({ id: newId(), name: 'García', pax: 2, addedAt: now - 4 * M, lang: 'es' });
   for (const [t, p, a] of [[['109'], 2, 190], [['110'], 4, 175], [['117'], 5, 160], [['Sala 1'], 3, 150], [['126'], 2, 140], [['122'], 4, 95], [['100'], 6, 80]]) {
     const g = mk(t, p, a, a - 6, a - 60);
     await store.freeGroup({ ...g }, now - (a - 60) * M);
@@ -785,7 +874,7 @@ function renderTV() {
     nx.className = `tv-next ${sev}`;
     nx.innerHTML = `<div class="tv-eyebrow">Próxima mesa</div>
       <div class="tv-num">${tablesLabel(next.tables)}</div>
-      <div class="tv-meta">${paxWord(next.pax)}${next.lang ? ` · ${LANG_WORD[next.lang]}` : ''} · entrou às ${fmtTime(next.arrivedAt)}</div>
+      <div class="tv-meta">${next.name ? `${next.name} · ` : ''}${paxWord(next.pax)}${next.lang ? ` · ${LANG_WORD[next.lang]}` : ''} · entrou às ${fmtTime(next.arrivedAt)}</div>
       <div class="tv-wait">${mins} min de espera</div>`;
   } else {
     nx.className = 'tv-next calm';
@@ -854,6 +943,7 @@ async function main() {
     connLabel.textContent = window.__PREVIEW__ ? 'demo' : 'só neste aparelho';
   }
   store.onConfig(applyConfig); // disposição de mesas sincronizada
+  store.onWaitlist((v) => { waitlist = v || {}; renderWait(); });
   store.onLive((v) => { live = v || {}; renderMap(); renderQueue(); checkAlerts(); renderTV(); if (currentView() === 'day') renderDay(); });
   store.onToday((k, v) => {
     todayLog = v || {};
@@ -893,6 +983,19 @@ async function main() {
   $('tvBtn').addEventListener('click', enterTV);
   $('tvExit').addEventListener('click', exitTV);
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && tvActive) exitTV(); });
+  // lista de espera
+  $('waitAddBtn').addEventListener('click', openWaitAdd);
+  $('waitCancel').addEventListener('click', closeWaitAdd);
+  $('waitScrim').addEventListener('click', closeWaitAdd);
+  $('waitConfirm').addEventListener('click', confirmWaitAdd);
+  $('waitName').addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmWaitAdd(); });
+  $('waitMinus').addEventListener('click', () => stepWait(-1));
+  $('waitPlus').addEventListener('click', () => stepWait(1));
+  $('waitLang').querySelectorAll('.lang-chip').forEach((b) => b.addEventListener('click', () => {
+    waitLang = waitLang === b.dataset.lang ? null : b.dataset.lang;
+    paintLangRow($('waitLang'), waitLang);
+  }));
+  $('seatDone').addEventListener('click', confirmSeat);
   $('addCancel').addEventListener('click', closeAdd);
   $('addScrim').addEventListener('click', closeAdd);
   $('addConfirm').addEventListener('click', () => { addTable($('addInput').value, addSection); closeAdd(); });

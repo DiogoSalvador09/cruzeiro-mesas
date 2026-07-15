@@ -48,6 +48,7 @@
 
 <nav class="tabs" id="tabs" role="tablist" aria-label="Vistas">
   <button class="tab active" data-view="map"  role="tab" aria-selected="true">Mapa</button>
+  <button class="tab" data-view="wait" role="tab" aria-selected="false">Espera <span id="waitBadge" class="badge hidden">0</span></button>
   <button class="tab" data-view="queue" role="tab" aria-selected="false">Fila <span id="queueBadge" class="badge hidden">0</span></button>
   <button class="tab" data-view="day"  role="tab" aria-selected="false">Dia</button>
 </nav>
@@ -75,6 +76,19 @@
       <div class="map-grid" id="mapMain"><!-- tiles --></div>
       <div class="map-head sala"><span class="section-label">Sala</span></div>
       <div class="map-grid sala-grid" id="mapSala"><!-- tiles --></div>
+    </div>
+  </section>
+
+  <!-- ================== LISTA DE ESPERA ================== -->
+  <section id="view-wait" class="view" role="tabpanel" aria-label="Lista de espera de mesa">
+    <div class="wait-wrap">
+      <button class="join-btn" id="waitAddBtn"><span class="plus">＋</span> Adicionar à espera</button>
+      <h2 class="section-label">À espera de mesa <span id="waitListCount" class="count"></span></h2>
+      <div id="waitList" class="queue-list"></div>
+      <div id="waitEmpty" class="empty">
+        <div class="empty-big">Sem lista de espera</div>
+        <div class="empty-sub">Quando estiver cheio, junta aqui quem espera por mesa (nome + pessoas). Ao vagar uma mesa, é só carregar em «Sentar» e escolher onde.</div>
+      </div>
     </div>
   </section>
 
@@ -132,6 +146,12 @@
 <div class="join-bar hidden" id="joinBar">
   <div class="join-bar-txt">A juntar · <span id="joinBarTables"></span></div>
   <button id="joinDone" class="join-done">Concluir ✓</button>
+</div>
+
+<!-- barra de sentar alguém da lista de espera -->
+<div class="join-bar hidden" id="seatBar">
+  <div class="join-bar-txt" id="seatBarTxt"></div>
+  <button id="seatDone" class="join-done">Sentar ✓</button>
 </div>
 
 <!-- ============ FOLHA: NOVA ENTRADA / MESA ============ -->
@@ -196,6 +216,29 @@
 <div class="toast hidden" id="toast">
   <span id="toastMsg"></span>
   <button id="toastUndo" class="toast-undo hidden">Anular</button>
+</div>
+
+<!-- adicionar à lista de espera -->
+<div class="confirm-scrim hidden" id="waitScrim"></div>
+<div class="confirm hidden" id="waitBox" role="dialog" aria-modal="true" aria-labelledby="waitDlgTitle">
+  <div class="confirm-title" id="waitDlgTitle">À espera de mesa</div>
+  <input id="waitName" class="add-input" type="text" autocomplete="off" placeholder="Nome (ex.: Silva)">
+  <div class="lang-row" id="waitLang">
+    <button class="lang-chip" data-lang="es">🇪🇸 Espanhol</button>
+    <button class="lang-chip" data-lang="en">🇬🇧 Inglês</button>
+  </div>
+  <div class="pax-adjust wait-pax">
+    <span class="section-label">Pessoas</span>
+    <div class="stepper">
+      <button id="waitMinus" aria-label="Menos uma pessoa">−</button>
+      <span id="waitValue" class="pax-value">2</span>
+      <button id="waitPlus" aria-label="Mais uma pessoa">+</button>
+    </div>
+  </div>
+  <div class="confirm-actions">
+    <button class="btn ghost" id="waitCancel">Cancelar</button>
+    <button class="btn primary" id="waitConfirm">Adicionar</button>
+  </div>
 </div>
 
 <!-- adicionar mesa -->

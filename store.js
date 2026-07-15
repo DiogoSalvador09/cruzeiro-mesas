@@ -72,6 +72,16 @@ async function firebaseStore(cfg) {
       });
     },
     setTables(cfg) { try { localStorage.setItem('cz_tables', JSON.stringify(cfg)); } catch { /* cheio */ } return set(ref(db, 'config/tables'), cfg); },
+    onWaitlist(cb) {
+      try { const m = JSON.parse(localStorage.getItem('cz_wait') || 'null'); if (m) cb(m); } catch { /* nada */ }
+      onValue(ref(db, 'waitlist'), (s) => {
+        const v = s.val() || {};
+        try { localStorage.setItem('cz_wait', JSON.stringify(v)); } catch { /* cheio */ }
+        cb(v);
+      });
+    },
+    addWait(w) { return set(ref(db, `waitlist/${w.id}`), clean(w)); },
+    removeWait(id) { return remove(ref(db, `waitlist/${id}`)); },
     async fetchDays(n) {
       const s = await get(query(ref(db, 'days'), orderByKey(), limitToLast(n)));
       return s.val() || {};
@@ -79,26 +89,28 @@ async function firebaseStore(cfg) {
     async clearAll() {
       await remove(ref(db, 'live'));
       await remove(ref(db, 'days'));
-      try { localStorage.removeItem(MIRROR); } catch { /* nada */ }
+      await remove(ref(db, 'waitlist'));
+      try { localStorage.removeItem(MIRROR); localStorage.removeItem('cz_wait'); } catch { /* nada */ }
     },
   };
 }
 
 /* ============================== LOCAL =============================== */
 function localStore() {
-  const LIVE = 'cz_live'; const DAYS = 'cz_days';
+  const LIVE = 'cz_live'; const DAYS = 'cz_days'; const WAIT = 'cz_wait';
   const read = (k) => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch { return {}; } };
   const write = (k, v) => localStorage.setItem(k, JSON.stringify(v));
   const bc = 'BroadcastChannel' in window ? new BroadcastChannel('cz') : null;
 
-  let liveCbs = []; let todayCbs = []; let cfgCbs = [];
+  let liveCbs = []; let todayCbs = []; let cfgCbs = []; let waitCbs = [];
   const readCfg = () => { try { return JSON.parse(localStorage.getItem('cz_tables') || 'null'); } catch { return null; } };
   const emitLive = () => { const v = read(LIVE); liveCbs.forEach((cb) => cb(v)); };
   const emitToday = () => { const k = dayKey(); const v = read(DAYS)[k] || {}; todayCbs.forEach((cb) => cb(k, v)); };
   const emitCfg = () => { const v = readCfg(); cfgCbs.forEach((cb) => cb(v)); };
+  const emitWait = () => { const v = read(WAIT); waitCbs.forEach((cb) => cb(v)); };
   const broadcast = () => { bc && bc.postMessage('sync'); };
-  if (bc) bc.onmessage = () => { emitLive(); emitToday(); emitCfg(); };
-  window.addEventListener('storage', () => { emitLive(); emitToday(); emitCfg(); });
+  if (bc) bc.onmessage = () => { emitLive(); emitToday(); emitCfg(); emitWait(); };
+  window.addEventListener('storage', () => { emitLive(); emitToday(); emitCfg(); emitWait(); });
 
   return {
     mode: 'local',
@@ -134,13 +146,16 @@ function localStore() {
     async addDayEntry(dk, id, entry) { const days = read(DAYS); days[dk] = days[dk] || {}; days[dk][id] = entry; write(DAYS, days); emitToday(); broadcast(); },
     onConfig(cb) { cfgCbs.push(cb); cb(readCfg()); },
     setTables(cfg) { localStorage.setItem('cz_tables', JSON.stringify(cfg)); emitCfg(); broadcast(); },
+    onWaitlist(cb) { waitCbs.push(cb); cb(read(WAIT)); },
+    async addWait(w) { const v = read(WAIT); v[w.id] = w; write(WAIT, v); emitWait(); broadcast(); },
+    async removeWait(id) { const v = read(WAIT); delete v[id]; write(WAIT, v); emitWait(); broadcast(); },
     async fetchDays(n) {
       const days = read(DAYS);
       return Object.fromEntries(Object.keys(days).sort().slice(-n).map((k) => [k, days[k]]));
     },
     async clearAll() {
-      localStorage.removeItem(LIVE); localStorage.removeItem(DAYS);
-      emitLive(); emitToday(); broadcast();
+      localStorage.removeItem(LIVE); localStorage.removeItem(DAYS); localStorage.removeItem(WAIT);
+      emitLive(); emitToday(); emitWait(); broadcast();
     },
   };
 }
