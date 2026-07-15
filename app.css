@@ -181,9 +181,16 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 .map-head-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .edit-btn{font-size:12.5px;font-weight:600;color:var(--brass);padding:6px 12px;border-radius:8px;border:1px solid color-mix(in srgb,var(--brass) 45%,transparent);transition:background .15s ease}
 .edit-btn:hover{background:color-mix(in srgb,var(--brass) 10%,transparent)}
-.edit-hint{font-size:12.5px;color:var(--ink-2);background:var(--surface-2);border-radius:8px;padding:9px 12px;margin:0 2px 13px;border-left:2px solid var(--brass);line-height:1.45}
+.edit-hint{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);background:var(--surface-2);border-radius:8px;padding:10px 12px;margin:0 2px 13px;border-left:2px solid var(--brass);line-height:1.45}
+.reset-btn{flex:none;font-size:12.5px;font-weight:600;color:var(--ink-2);padding:7px 12px;border-radius:8px;border:1px solid var(--line);white-space:nowrap}
+.reset-btn:hover{color:var(--brass);border-color:color-mix(in srgb,var(--brass) 45%,transparent)}
 body.editing .map-legend{display:none}
+body.editing .tile{cursor:grab;touch-action:none}
 .tile.editing{overflow:visible}
+.tile.drag-src{opacity:.35}
+.tile.drop-target{outline:2px dashed var(--brass);outline-offset:3px}
+.tile.drag-clone{position:fixed;z-index:60;margin:0;pointer-events:none;overflow:visible;animation:none;box-shadow:0 14px 34px rgba(0,0,0,.55);transform:scale(1.06);opacity:.96}
+.tile.drag-clone .tile-x{display:none}
 .tile>.tile-x{position:absolute;top:-8px;right:-8px;width:23px;height:23px;border-radius:50%;background:var(--garnet);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;z-index:4;box-shadow:0 2px 7px rgba(0,0,0,.45);border:2px solid var(--surface)}
 .tile.add-tile{background:transparent;border:1.5px dashed var(--brass);box-shadow:none;color:var(--brass)}
 .tile.add-tile .num{color:var(--brass);font-size:24px}

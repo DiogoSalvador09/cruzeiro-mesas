@@ -87,11 +87,13 @@ function makeTile(t, i, section) {
     el.style.gridRow = String(Math.floor(i / 4) + 1);
   }
   if (firstBuild) el.style.setProperty('--i', String(staggerN++)); else el.style.animation = 'none';
+  el.dataset.label = t; el.dataset.section = section;
   el.innerHTML = `<span class="num">${t}</span><span class="sub"></span>`;
   el.setAttribute('aria-label', `Mesa ${t}`);
   el.addEventListener('click', () => onTileTap(t));
   if (editMode) {
     el.classList.add('editing');
+    el.addEventListener('pointerdown', (e) => onDragStart(e, t, section));
     const x = document.createElement('span');
     x.className = 'tile-x'; x.textContent = '✕';
     x.setAttribute('aria-label', `Remover mesa ${t}`);
@@ -142,11 +144,23 @@ function toggleEdit() {
   $('editHint').classList.toggle('hidden', !editMode);
   buildMap(); renderMap();
 }
+function saveConfig(cfg) { applyConfig(cfg); store.setTables(cfg); }
+function cloneConfig() { return { esplanada: [...tablesConfig.esplanada], sala: [...tablesConfig.sala] }; }
 function removeTable(t, section) {
   if (groupOf(t)) { toast('Mesa ocupada — liberta primeiro'); return; }
-  const cfg = { esplanada: [...tablesConfig.esplanada], sala: [...tablesConfig.sala] };
+  const prev = cloneConfig();
+  const idx = tablesConfig[section].indexOf(t);
+  const cfg = cloneConfig();
   cfg[section] = cfg[section].filter((x) => x !== t);
-  applyConfig(cfg); store.setTables(cfg);
+  saveConfig(cfg);
+  lastAction = { undo: () => saveConfig(prev) };
+  toast(`Mesa ${t} removida`, true);
+}
+function resetTables() {
+  const prev = cloneConfig();
+  saveConfig(defaultTables());
+  lastAction = { undo: () => saveConfig(prev) };
+  toast('Mesas repostas ao original', true);
 }
 function addTable(label, section) {
   const l = (label || '').trim();
@@ -165,6 +179,59 @@ function openAddTable(section) {
   setTimeout(() => $('addInput').focus(), 60);
 }
 function closeAdd() { $('addScrim').classList.add('hidden'); $('addBox').classList.add('hidden'); }
+
+/* ---- arrastar para trocar de sítio: rato = já; toque = pressiona e arrasta ---- */
+let drag = null;
+function onDragStart(e, label, section) {
+  if (!editMode || (e.target.closest && e.target.closest('.tile-x'))) return;
+  drag = { label, section, x0: e.clientX, y0: e.clientY, el: e.currentTarget, started: false, armed: e.pointerType !== 'touch', target: null, timer: null };
+  if (e.pointerType === 'touch') drag.timer = setTimeout(() => { if (drag) { drag.armed = true; navigator.vibrate && navigator.vibrate(8); } }, 300);
+  window.addEventListener('pointermove', onDragMove, { passive: false });
+  window.addEventListener('pointerup', onDragEnd, { once: true });
+  window.addEventListener('pointercancel', onDragEnd, { once: true });
+}
+function onDragMove(e) {
+  if (!drag) return;
+  const dx = e.clientX - drag.x0; const dy = e.clientY - drag.y0;
+  if (!drag.started) {
+    if (!drag.armed) { if (Math.hypot(dx, dy) > 10) endDrag(false); return; } // toque a deslizar = scroll
+    if (Math.hypot(dx, dy) < 6) return;
+    const r = drag.el.getBoundingClientRect();
+    const c = drag.el.cloneNode(true);
+    c.classList.remove('editing'); c.classList.add('drag-clone'); // mantém cor de estado
+    c.style.cssText = `width:${r.width}px;height:${r.height}px;left:${r.left}px;top:${r.top}px`;
+    c.dx = e.clientX - r.left; c.dy = e.clientY - r.top;
+    document.body.appendChild(c);
+    drag.clone = c; drag.el.classList.add('drag-src'); drag.started = true;
+  }
+  drag.clone.style.left = `${e.clientX - drag.clone.dx}px`;
+  drag.clone.style.top = `${e.clientY - drag.clone.dy}px`;
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const tt = under && under.closest ? under.closest('.tile') : null;
+  document.querySelectorAll('.tile.drop-target').forEach((t) => t.classList.remove('drop-target'));
+  drag.target = null;
+  if (tt && !tt.classList.contains('add-tile') && !tt.classList.contains('drag-src') && tt.dataset.section === drag.section) {
+    tt.classList.add('drop-target'); drag.target = tt.dataset.label;
+  }
+  e.preventDefault();
+}
+function onDragEnd() { endDrag(true); }
+function endDrag(commit) {
+  window.removeEventListener('pointermove', onDragMove);
+  if (!drag) return;
+  if (drag.timer) clearTimeout(drag.timer);
+  drag.clone && drag.clone.remove();
+  document.querySelectorAll('.tile.drag-src,.tile.drop-target').forEach((t) => t.classList.remove('drag-src', 'drop-target'));
+  if (commit && drag.started && drag.target && drag.target !== drag.label) {
+    const arr = [...tablesConfig[drag.section]];
+    const from = arr.indexOf(drag.label); const to = arr.indexOf(drag.target);
+    if (from > -1 && to > -1) {
+      arr.splice(from, 1); arr.splice(to, 0, drag.label);
+      const cfg = cloneConfig(); cfg[drag.section] = arr; saveConfig(cfg);
+    }
+  }
+  drag = null;
+}
 
 function renderMap() {
   Object.entries(tiles).forEach(([t, el]) => {
@@ -785,6 +852,7 @@ async function main() {
   $('confirmScrim').addEventListener('click', closeConfirm);
   $('confirmWipe').addEventListener('click', doWipe);
   $('editBtn').addEventListener('click', toggleEdit);
+  $('resetBtn').addEventListener('click', resetTables);
   $('addCancel').addEventListener('click', closeAdd);
   $('addScrim').addEventListener('click', closeAdd);
   $('addConfirm').addEventListener('click', () => { addTable($('addInput').value, addSection); closeAdd(); });
