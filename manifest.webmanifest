@@ -1,0 +1,14 @@
+{
+  "name": "O Cruzeiro · Mesas",
+  "short_name": "Mesas",
+  "description": "Registo de mesas e fila de atendimento — Restaurante O Cruzeiro, Monte Gordo",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#F3F5F1",
+  "theme_color": "#0E7A3A",
+  "lang": "pt-PT",
+  "icons": [
+    { "src": "assets/logo.jpg", "sizes": "960x960", "type": "image/jpeg", "purpose": "any" }
+  ]
+}

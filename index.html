@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>O Cruzeiro · Mesas</title>
+<meta name="description" content="Registo de mesas e fila de atendimento — Restaurante O Cruzeiro, Monte Gordo">
+<meta name="theme-color" content="#0E7A3A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/logo.jpg">
+<link rel="icon" href="assets/logo.jpg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Mesas">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <img class="logo" src="assets/logo.jpg" alt="O Cruzeiro">
+  <div class="title">
+    <h1>O Cruzeiro</h1>
+    <span class="subtitle">Mesas · Monte Gordo</span>
+  </div>
+  <span id="previewPill" class="pill preview hidden">PRÉ-VISUALIZAÇÃO</span>
+  <div class="topbar-right">
+    <span id="clock" class="clock" aria-hidden="true"></span>
+    <span id="connDot" class="conn" title="Estado da ligação"><span class="dot"></span><span id="connLabel">local</span></span>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs" role="tablist" aria-label="Vistas">
+  <button class="tab active" data-view="map"  role="tab" aria-selected="true">Mapa</button>
+  <button class="tab" data-view="queue" role="tab" aria-selected="false">Fila <span id="queueBadge" class="badge hidden">0</span></button>
+  <button class="tab" data-view="day"  role="tab" aria-selected="false">Dia</button>
+</nav>
+
+<main class="views">
+
+  <!-- ===================== MAPA ===================== -->
+  <section id="view-map" class="view active" role="tabpanel" aria-label="Mapa das mesas">
+    <div class="map-wrap">
+      <div class="map-head">
+        <span class="section-label">Esplanada</span>
+        <span class="map-legend">
+          <span class="lg"><i class="sw free"></i>livre</span>
+          <span class="lg"><i class="sw wait"></i>à espera</span>
+          <span class="lg"><i class="sw done"></i>atendida</span>
+        </span>
+      </div>
+      <div class="map-grid" id="mapMain"><!-- tiles --></div>
+      <div class="map-head sala"><span class="section-label">Sala</span></div>
+      <div class="map-grid sala-grid" id="mapSala"><!-- tiles --></div>
+    </div>
+  </section>
+
+  <!-- ===================== FILA ===================== -->
+  <section id="view-queue" class="view" role="tabpanel" aria-label="Fila de atendimento">
+    <div class="queue-wrap">
+      <div class="queue-col">
+        <h2 class="section-label">À espera <span id="waitCount" class="count"></span></h2>
+        <div id="queueList" class="queue-list"></div>
+        <div id="queueEmpty" class="empty hidden">
+          <div class="empty-big">Ninguém à espera</div>
+          <div class="empty-sub">Quando marcarem uma mesa no mapa, aparece aqui por ordem de chegada.</div>
+        </div>
+      </div>
+      <div class="queue-col">
+        <h2 class="section-label">Na sala <span id="seatedCount" class="count"></span></h2>
+        <div id="seatedList" class="queue-list seated"></div>
+        <div id="seatedEmpty" class="empty hidden"><div class="empty-sub">Sem mesas atendidas neste momento.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== DIA ===================== -->
+  <section id="view-day" class="view" role="tabpanel" aria-label="Resumo do dia">
+    <div class="day-wrap">
+      <div class="stat-row" id="statRow"></div>
+      <div class="card chart-card">
+        <h2 class="card-title">Entradas por hora — hoje</h2>
+        <div class="chart" id="hourChart"></div>
+        <div class="chart-tip hidden" id="chartTip"></div>
+      </div>
+      <div class="card">
+        <h2 class="card-title">Últimos dias</h2>
+        <table class="days-table" id="daysTable">
+          <thead><tr><th>Dia</th><th>Grupos</th><th>Pessoas</th><th>Espera média</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div id="daysEmpty" class="empty-sub hidden">Ainda não há histórico — aparece a partir de amanhã.</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ============ FOLHA: NOVA ENTRADA / MESA ============ -->
+<div class="sheet-scrim hidden" id="scrim"></div>
+<div class="sheet hidden" id="sheet" role="dialog" aria-modal="true">
+  <div class="sheet-grab"></div>
+  <div class="sheet-head">
+    <div>
+      <div class="sheet-tables" id="sheetTables">Mesa 100</div>
+      <div class="sheet-sub" id="sheetSub"></div>
+    </div>
+    <button class="sheet-close" id="sheetClose" aria-label="Fechar">✕</button>
+  </div>
+
+  <!-- new entry: pick pax -->
+  <div id="paneNew" class="pane">
+    <div class="hint" id="joinHint">Grupo grande? Toca noutra mesa livre no mapa para juntar.</div>
+    <div class="lang-block">
+      <span class="section-label">Não falam português?</span>
+      <div class="lang-row" id="langRowNew">
+        <button class="lang-chip" data-lang="es">🇪🇸 Espanhol</button>
+        <button class="lang-chip" data-lang="en">🇬🇧 Inglês</button>
+      </div>
+    </div>
+    <div class="pax-label section-label">Quantas pessoas?</div>
+    <div class="pax-grid" id="paxGrid"></div>
+  </div>
+
+  <!-- existing group: actions -->
+  <div id="paneGroup" class="pane">
+    <div class="group-meta" id="groupMeta"></div>
+    <div class="lang-row" id="langRowGroup">
+      <button class="lang-chip" data-lang="es">🇪🇸 Espanhol</button>
+      <button class="lang-chip" data-lang="en">🇬🇧 Inglês</button>
+    </div>
+    <div class="pax-adjust">
+      <span class="section-label">Pessoas</span>
+      <div class="stepper">
+        <button id="paxMinus" aria-label="Menos uma pessoa">−</button>
+        <span id="paxValue" class="pax-value">4</span>
+        <button id="paxPlus" aria-label="Mais uma pessoa">+</button>
+      </div>
+    </div>
+    <button class="btn primary big" id="btnAttend">Atendida ✓</button>
+    <button class="btn success big hidden" id="btnFree">Libertar mesa</button>
+    <button class="btn ghost" id="btnCancel">Foi engano — apagar entrada</button>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast">
+  <span id="toastMsg"></span>
+  <button id="toastUndo" class="toast-undo hidden">Anular</button>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,461 @@
+// O Cruzeiro · Mesas — lógica principal
+import { createStore, dayKey, newId } from './store.js';
+
+/* ------------------- mesas (fiel à folha no balcão) ------------------- */
+const MAIN_ROWS = [
+  ['100', '101', '102', '103'],
+  ['108', '107', '105', '104'],
+  ['109', '110', '111', '112'],
+  ['116', '115', '114', '113'],
+  ['117', '118', '119', '120'],
+  ['124', null, '122', '121'],
+  ['125', '126', '127', '128'],
+];
+const SALA = ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5', 'Sala 6'];
+const WARN_MIN = 5;   // fica laranja
+const CRIT_MIN = 10;  // fica vermelho a piscar
+
+/* ------------------------------ estado ------------------------------ */
+let store;
+let live = {};            // id -> {id, tables[], pax, arrivedAt, attendedAt?}
+let todayLog = {};        // id -> entrada fechada de hoje
+let selection = [];       // mesas escolhidas na nova entrada
+let selLang = null;       // 'es' | 'en' | null (null = português)
+const LANG_WORD = { es: 'Espanhol', en: 'Inglês' };
+let activeId = null;      // grupo aberto na folha
+let lastAction = null;    // para o Anular
+let toastTimer = null;
+const tiles = {};         // mesa -> elemento
+
+const $ = (id) => document.getElementById(id);
+const fmtTime = (ts) => new Date(ts).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+const minsSince = (ts) => Math.floor((Date.now() - ts) / 60000);
+const sortTables = (arr) => [...arr].sort((a, b) => {
+  const na = parseInt(a, 10); const nb = parseInt(b, 10);
+  if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+  return a.localeCompare(b, 'pt');
+});
+const tablesLabel = (arr) => sortTables(arr).join(' + ');
+const groupOf = (table) => Object.values(live).find((g) => (g.tables || []).includes(table));
+const paxWord = (n) => `${n} ${n === 1 ? 'pessoa' : 'pessoas'}`;
+
+/* ------------------------------- mapa ------------------------------- */
+function buildMap() {
+  const main = $('mapMain');
+  MAIN_ROWS.forEach((row, ri) => {
+    row.forEach((t, ci) => {
+      const el = document.createElement('button');
+      el.className = 'tile';
+      el.style.gridColumn = String(ci + 1);
+      el.style.gridRow = String(ri + 1);
+      if (t === null) { el.classList.add('gap'); el.disabled = true; el.setAttribute('aria-hidden', 'true'); }
+      else {
+        el.innerHTML = `<span class="num">${t}</span><span class="sub"></span>`;
+        el.setAttribute('aria-label', `Mesa ${t}`);
+        el.addEventListener('click', () => onTileTap(t));
+        tiles[t] = el;
+      }
+      main.appendChild(el);
+    });
+  });
+  const b = document.createElement('div'); // balcão ao lado das filas 3–4, como na folha
+  b.className = 'balcao'; b.textContent = 'BALCÃO';
+  main.appendChild(b);
+  const sala = $('mapSala');
+  SALA.forEach((t) => {
+    const el = document.createElement('button');
+    el.className = 'tile';
+    el.innerHTML = `<span class="num">${t}</span><span class="sub"></span>`;
+    el.setAttribute('aria-label', `Mesa ${t}`);
+    el.addEventListener('click', () => onTileTap(t));
+    tiles[t] = el;
+    sala.appendChild(el);
+  });
+}
+
+function renderMap() {
+  Object.entries(tiles).forEach(([t, el]) => {
+    const g = groupOf(t);
+    el.classList.toggle('selected', selection.includes(t));
+    el.classList.toggle('wait', !!g && !g.attendedAt);
+    el.classList.toggle('done', !!g && !!g.attendedAt);
+    el.querySelector('.link-dot')?.remove();
+    const sub = el.querySelector('.sub');
+    if (!sub) return;
+    if (selection.includes(t)) sub.textContent = 'escolhida';
+    else if (!g) sub.textContent = '';
+    else {
+      const lang = g.lang ? `${g.lang.toUpperCase()} ` : '';
+      sub.textContent = lang + (g.attendedAt ? `${g.pax}p ✓` : `${g.pax}p · ${minsSince(g.arrivedAt)}m`);
+      if ((g.tables || []).length > 1) {
+        const dot = document.createElement('span');
+        dot.className = 'link-dot'; dot.title = `Juntas: ${tablesLabel(g.tables)}`;
+        el.appendChild(dot);
+      }
+    }
+  });
+}
+
+/* --------------------------- interações ----------------------------- */
+function onTileTap(t) {
+  const g = groupOf(t);
+  if (g) { openGroupSheet(g.id); return; }
+  if (!$('sheet').classList.contains('hidden') && !$('paneNew').classList.contains('hidden')) {
+    // folha de nova entrada aberta → juntar / desjuntar mesas
+    selection = selection.includes(t) ? selection.filter((x) => x !== t) : [...selection, t];
+    if (!selection.length) { closeSheet(); return; }
+    $('sheetTables').textContent = `Mesa ${tablesLabel(selection)}`;
+    renderMap();
+    return;
+  }
+  selection = [t];
+  openNewSheet();
+}
+
+function openNewSheet() {
+  selLang = null;
+  paintLangRow($('langRowNew'), null);
+  $('sheetTables').textContent = `Mesa ${tablesLabel(selection)}`;
+  $('sheetSub').textContent = 'Nova entrada';
+  $('paneNew').classList.remove('hidden');
+  $('paneGroup').classList.add('hidden');
+  showSheet();
+  renderMap();
+}
+
+function openGroupSheet(id) {
+  const g = live[id]; if (!g) return;
+  activeId = id; selection = [];
+  $('sheetTables').textContent = `Mesa ${tablesLabel(g.tables)}`;
+  $('sheetSub').textContent = '';
+  $('paneNew').classList.add('hidden');
+  $('paneGroup').classList.remove('hidden');
+  renderGroupPane();
+  showSheet();
+  renderMap();
+}
+
+function renderGroupPane() {
+  const g = live[activeId]; if (!g) { closeSheet(); return; }
+  const waiting = !g.attendedAt;
+  const langWord = g.lang ? `${LANG_WORD[g.lang]} · ` : '';
+  $('groupMeta').textContent = langWord + (waiting
+    ? `Entrou às ${fmtTime(g.arrivedAt)} · à espera há ${minsSince(g.arrivedAt)} min`
+    : `Entrou às ${fmtTime(g.arrivedAt)} · atendida às ${fmtTime(g.attendedAt)}`);
+  paintLangRow($('langRowGroup'), g.lang || null);
+  $('paxValue').textContent = g.pax;
+  $('btnAttend').classList.toggle('hidden', !waiting);
+  const free = $('btnFree');
+  free.classList.remove('hidden');
+  free.className = waiting ? 'btn ghost big' : 'btn success big';
+  free.id = 'btnFree';
+}
+
+function showSheet() { $('sheet').classList.remove('hidden'); $('scrim').classList.remove('hidden'); }
+function closeSheet() {
+  $('sheet').classList.add('hidden'); $('scrim').classList.add('hidden');
+  selection = []; activeId = null;
+  renderMap();
+}
+
+function paintLangRow(row, lang) {
+  row.querySelectorAll('.lang-chip').forEach((b) => b.classList.toggle('on', b.dataset.lang === lang));
+}
+function wireLangRows() {
+  $('langRowNew').querySelectorAll('.lang-chip').forEach((b) => b.addEventListener('click', () => {
+    selLang = selLang === b.dataset.lang ? null : b.dataset.lang;
+    paintLangRow($('langRowNew'), selLang);
+  }));
+  $('langRowGroup').querySelectorAll('.lang-chip').forEach((b) => b.addEventListener('click', () => {
+    const g = live[activeId]; if (!g) return;
+    const lang = g.lang === b.dataset.lang ? null : b.dataset.lang;
+    paintLangRow($('langRowGroup'), lang);
+    store.updateGroup(activeId, { lang });
+  }));
+}
+
+const langBadge = (g) => (g.lang ? `<span class="lang-badge" title="${LANG_WORD[g.lang]}">${g.lang.toUpperCase()}</span>` : '');
+
+function buildPaxGrid() {
+  const grid = $('paxGrid');
+  for (let n = 1; n <= 12; n++) {
+    const b = document.createElement('button');
+    b.textContent = n;
+    b.setAttribute('aria-label', paxWord(n));
+    b.addEventListener('click', () => confirmNew(n));
+    grid.appendChild(b);
+  }
+}
+
+async function confirmNew(pax) {
+  const g = {
+    id: newId(), tables: sortTables(selection), pax, arrivedAt: Date.now(),
+    ...(selLang ? { lang: selLang } : {}),
+  };
+  closeSheet();
+  await store.addGroup(g);
+  toast(`Mesa ${tablesLabel(g.tables)} · ${paxWord(pax)}${g.lang ? ` · ${LANG_WORD[g.lang]}` : ''} ✓`);
+}
+
+/* ------------------------------ ações ------------------------------- */
+async function attend(id) {
+  const g = live[id]; if (!g) return;
+  await store.updateGroup(id, { attendedAt: Date.now() });
+  lastAction = { undo: () => store.updateGroup(id, { attendedAt: null }) };
+  toast(`Mesa ${tablesLabel(g.tables)} atendida ✓`, true);
+}
+async function freeTable(id) {
+  const g = live[id]; if (!g) return;
+  const snapshot = { ...g };
+  await store.freeGroup(g, Date.now());
+  lastAction = { undo: () => store.restoreGroup(snapshot) };
+  toast(`Mesa ${tablesLabel(g.tables)} libertada`, true);
+}
+async function cancelEntry(id) {
+  const g = live[id]; if (!g) return;
+  const snapshot = { ...g };
+  await store.removeGroup(id);
+  lastAction = { undo: () => store.addGroup(snapshot) };
+  toast('Entrada apagada', true);
+}
+
+function toast(msg, undoable = false) {
+  clearTimeout(toastTimer);
+  $('toastMsg').textContent = msg;
+  $('toastUndo').classList.toggle('hidden', !undoable);
+  $('toast').classList.remove('hidden');
+  toastTimer = setTimeout(() => $('toast').classList.add('hidden'), 6000);
+}
+
+/* ------------------------------- fila ------------------------------- */
+function renderQueue() {
+  const groups = Object.values(live);
+  const waiting = groups.filter((g) => !g.attendedAt).sort((a, b) => a.arrivedAt - b.arrivedAt);
+  const seated = groups.filter((g) => g.attendedAt).sort((a, b) => a.attendedAt - b.attendedAt);
+
+  const badge = $('queueBadge');
+  badge.textContent = waiting.length;
+  badge.classList.toggle('hidden', !waiting.length);
+  $('waitCount').textContent = waiting.length ? `· ${waiting.length}` : '';
+  $('seatedCount').textContent = seated.length ? `· ${seated.length}` : '';
+
+  const ql = $('queueList'); ql.innerHTML = '';
+  waiting.forEach((g, i) => {
+    const mins = minsSince(g.arrivedAt);
+    const chipCls = mins >= CRIT_MIN ? 'chip crit' : mins >= WARN_MIN ? 'chip warn' : 'chip';
+    const card = document.createElement('div');
+    card.className = 'qcard';
+    card.innerHTML = `
+      <span class="pos">${i + 1}º</span>
+      <div class="who">
+        <div class="tables">${tablesLabel(g.tables)}${langBadge(g)}</div>
+        <div class="meta">${paxWord(g.pax)} · entrou às ${fmtTime(g.arrivedAt)}</div>
+      </div>
+      <span class="${chipCls}">${mins} min</span>
+      <button class="attend">Atendida ✓</button>`;
+    card.querySelector('.attend').addEventListener('click', () => attend(g.id));
+    card.querySelector('.who').addEventListener('click', () => openGroupSheet(g.id));
+    ql.appendChild(card);
+  });
+  $('queueEmpty').classList.toggle('hidden', !!waiting.length);
+
+  const sl = $('seatedList'); sl.innerHTML = '';
+  seated.forEach((g) => {
+    const row = document.createElement('div');
+    row.className = 'qcard seated-row';
+    row.innerHTML = `
+      <div class="who">
+        <div class="tables">${tablesLabel(g.tables)}${langBadge(g)}</div>
+        <div class="meta">${paxWord(g.pax)} · atendida há ${minsSince(g.attendedAt)} min</div>
+      </div>
+      <button class="free-btn">Libertar</button>`;
+    row.querySelector('.free-btn').addEventListener('click', () => freeTable(g.id));
+    row.querySelector('.who').addEventListener('click', () => openGroupSheet(g.id));
+    sl.appendChild(row);
+  });
+  $('seatedEmpty').classList.toggle('hidden', !!seated.length);
+}
+
+/* ------------------------------- dia -------------------------------- */
+function dayEntries() {
+  // fechadas hoje + ainda na sala (grupos vivos contam para o dia)
+  return [...Object.values(todayLog), ...Object.values(live)];
+}
+
+function renderDay() {
+  const entries = dayEntries();
+  const waits = entries.filter((e) => e.attendedAt).map((e) => e.attendedAt - e.arrivedAt);
+  const ongoing = Object.values(live).filter((g) => !g.attendedAt).map((g) => Date.now() - g.arrivedAt);
+  const avg = waits.length ? Math.round(waits.reduce((a, b) => a + b, 0) / waits.length / 60000) : null;
+  const max = Math.max(0, ...waits, ...ongoing);
+
+  const stats = [
+    { v: entries.length, l: 'Grupos' },
+    { v: entries.reduce((a, e) => a + (e.pax || 0), 0), l: 'Pessoas' },
+    { v: avg == null ? '—' : `${avg} min`, l: 'Espera média' },
+    { v: entries.length ? `${Math.round(max / 60000)} min` : '—', l: 'Maior espera' },
+  ];
+  $('statRow').innerHTML = stats.map((s) => `<div class="stat"><div class="v">${s.v}</div><div class="l">${s.l}</div></div>`).join('');
+
+  renderHourChart(entries);
+  renderDaysTable();
+}
+
+function renderHourChart(entries) {
+  const byHour = {};
+  entries.forEach((e) => { const h = new Date(e.arrivedAt).getHours(); byHour[h] = (byHour[h] || 0) + 1; });
+  const hours = Object.keys(byHour).map(Number);
+  const chart = $('hourChart'); const tip = $('chartTip');
+  chart.innerHTML = '';
+  const labels = document.createElement('div'); labels.className = 'hour-labels';
+  chart.insertAdjacentElement('afterend', labels);
+  document.querySelectorAll('.hour-labels + .hour-labels').forEach((n) => n.remove()); // evita duplicar em re-render
+
+  if (!hours.length) { chart.innerHTML = '<div class="empty-sub" style="align-self:center;width:100%;text-align:center">Sem entradas hoje.</div>'; return; }
+  const h0 = Math.min(...hours); const h1 = Math.max(...hours);
+  const maxV = Math.max(...Object.values(byHour));
+  const span = h1 - h0 + 1;
+  for (let h = h0; h <= h1; h++) {
+    const v = byHour[h] || 0;
+    const slot = document.createElement('div');
+    slot.className = 'bar-slot'; slot.tabIndex = 0;
+    slot.setAttribute('role', 'img');
+    slot.setAttribute('aria-label', `${h} horas: ${v} grupos`);
+    const bar = document.createElement('div');
+    bar.className = 'bar'; bar.style.height = `${v ? Math.max(4, (v / maxV) * 100) : 0}%`;
+    if (v === maxV) { const tl = document.createElement('span'); tl.className = 'top-label'; tl.textContent = v; slot.appendChild(tl); }
+    slot.appendChild(bar);
+    const show = () => {
+      tip.textContent = `${h}h · ${v} ${v === 1 ? 'grupo' : 'grupos'}`;
+      tip.classList.remove('hidden');
+      const c = $('hourChart').parentElement.getBoundingClientRect();
+      const r = bar.getBoundingClientRect();
+      tip.style.left = `${r.left - c.left + r.width / 2}px`;
+      tip.style.top = `${r.top - c.top}px`;
+    };
+    slot.addEventListener('mouseenter', show);
+    slot.addEventListener('focus', show);
+    slot.addEventListener('mouseleave', () => tip.classList.add('hidden'));
+    slot.addEventListener('blur', () => tip.classList.add('hidden'));
+    chart.appendChild(slot);
+    const lb = document.createElement('span');
+    lb.textContent = (span <= 10 || (h - h0) % 2 === 0) ? `${h}h` : '';
+    labels.appendChild(lb);
+  }
+}
+
+async function renderDaysTable() {
+  const days = await store.fetchDays(10);
+  const tbody = $('daysTable').querySelector('tbody');
+  const today = dayKey();
+  const keys = Object.keys(days).filter((k) => k !== today).sort().reverse().slice(0, 7);
+  tbody.innerHTML = '';
+  keys.forEach((k) => {
+    const entries = Object.values(days[k] || {});
+    const waits = entries.filter((e) => e.attendedAt).map((e) => e.attendedAt - e.arrivedAt);
+    const avg = waits.length ? `${Math.round(waits.reduce((a, b) => a + b, 0) / waits.length / 60000)} min` : '—';
+    const d = new Date(`${k}T12:00:00`);
+    const label = d.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${label}</td><td>${entries.length}</td><td>${entries.reduce((a, e) => a + (e.pax || 0), 0)}</td><td>${avg}</td>`;
+    tbody.appendChild(tr);
+  });
+  $('daysTable').classList.toggle('hidden', !keys.length);
+  $('daysEmpty').classList.toggle('hidden', !!keys.length);
+}
+
+/* ------------------------------ vistas ------------------------------ */
+function setView(v) {
+  if (window.innerWidth >= 1020 && v === 'queue') v = 'map';
+  document.querySelectorAll('.tab').forEach((t) => {
+    const on = t.dataset.view === v;
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on);
+  });
+  document.querySelectorAll('.view').forEach((s) => s.classList.toggle('active', s.id === `view-${v}`));
+  document.querySelector('.views').classList.toggle('day-active', v === 'day');
+  localStorage.setItem('cz_view', v);
+  if (v === 'day') renderDay();
+}
+
+/* ---------------------------- demo (preview) ------------------------ */
+async function seedPreview() {
+  if (Object.keys(live).length || Object.keys(todayLog).length) return;
+  const now = Date.now(); const M = 60000;
+  const mk = (tables, pax, aMin, tMin, fMin, lang) => ({
+    id: newId(), tables, pax,
+    arrivedAt: now - aMin * M,
+    ...(tMin != null ? { attendedAt: now - tMin * M } : {}),
+    ...(fMin != null ? { freedAt: now - fMin * M } : {}),
+    ...(lang ? { lang } : {}),
+  });
+  await store.addGroup(mk(['105'], 2, 11, null, null));
+  await store.addGroup(mk(['114', '115'], 9, 6, null, null, 'en'));
+  await store.addGroup(mk(['101'], 4, 2, null, null, 'es'));
+  await store.addGroup(mk(['120'], 3, 38, 31, null));
+  await store.addGroup(mk(['Sala 2'], 6, 55, 49, null));
+  for (const [t, p, a] of [[['109'], 2, 190], [['110'], 4, 175], [['117'], 5, 160], [['Sala 1'], 3, 150], [['126'], 2, 140], [['122'], 4, 95], [['100'], 6, 80]]) {
+    const g = mk(t, p, a, a - 6, a - 60);
+    await store.freeGroup({ ...g }, now - (a - 60) * M);
+  }
+}
+
+/* ------------------------------ arranque ---------------------------- */
+async function main() {
+  buildMap();
+  buildPaxGrid();
+  wireLangRows();
+  store = await createStore();
+
+  const conn = $('connDot'); const connLabel = $('connLabel');
+  if (store.mode === 'firebase') {
+    store.onConnection((ok) => {
+      conn.className = `conn ${ok ? 'online' : 'offline'}`;
+      connLabel.textContent = ok ? 'em linha' : 'sem net';
+    });
+  } else {
+    connLabel.textContent = window.__PREVIEW__ ? 'demo' : 'só neste aparelho';
+  }
+  store.onLive((v) => { live = v || {}; renderMap(); renderQueue(); if (currentView() === 'day') renderDay(); });
+  store.onToday((k, v) => { todayLog = v || {}; if (currentView() === 'day') renderDay(); });
+
+  if (window.__PREVIEW__) {
+    $('previewPill').classList.remove('hidden');
+    await seedPreview(); // só semeia se estiver vazio — live já está carregado aqui
+  }
+
+  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setView(t.dataset.view)));
+  $('scrim').addEventListener('click', closeSheet);
+  $('sheetClose').addEventListener('click', closeSheet);
+  $('btnAttend').addEventListener('click', () => { const id = activeId; closeSheet(); attend(id); });
+  $('btnFree').addEventListener('click', () => { const id = activeId; closeSheet(); freeTable(id); });
+  $('btnCancel').addEventListener('click', () => { const id = activeId; closeSheet(); cancelEntry(id); });
+  $('paxMinus').addEventListener('click', () => stepPax(-1));
+  $('paxPlus').addEventListener('click', () => stepPax(1));
+  $('toastUndo').addEventListener('click', async () => {
+    $('toast').classList.add('hidden');
+    if (lastAction) { await lastAction.undo(); lastAction = null; }
+  });
+
+  const clock = $('clock');
+  const tickClock = () => { clock.textContent = new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }); };
+  tickClock(); setInterval(tickClock, 15000);
+
+  setInterval(() => { renderMap(); renderQueue(); if (activeId) renderGroupPane(); }, 20000);
+
+  setView(localStorage.getItem('cz_view') || 'map');
+
+  if ('serviceWorker' in navigator && !window.__PREVIEW__ && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+}
+
+function currentView() { return document.querySelector('.tab.active')?.dataset.view || 'map'; }
+function stepPax(d) {
+  const g = live[activeId]; if (!g) return;
+  const pax = Math.max(1, Math.min(60, (g.pax || 1) + d));
+  $('paxValue').textContent = pax;
+  store.updateGroup(activeId, { pax });
+}
+
+main();
