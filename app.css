@@ -86,6 +86,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 }
 .topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px}
 .clock{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--sign-ink);display:none}
+.bell{font-size:17px;padding:4px 6px;border-radius:8px;opacity:.55;filter:grayscale(1)}
+.bell.on{opacity:1;filter:none;background:rgba(200,169,97,.12)}
 .conn{display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.04em;color:var(--sign-sub)}
 .conn .dot{width:8px;height:8px;border-radius:50%;background:var(--sign-sub)}
 .conn.online .dot{background:#5FB3C9;box-shadow:0 0 8px rgba(95,179,201,.8)}

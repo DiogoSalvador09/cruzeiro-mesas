@@ -219,6 +219,63 @@ async function cancelEntry(id) {
   toast('Entrada apagada', true);
 }
 
+/* --------------------- sino do balcão (10 min) ---------------------- */
+let audioCtx = null;
+let bellOn = localStorage.getItem('cz_bell') === '1';
+const alertedKey = () => `cz_alerted_${dayKey()}`;
+let alerted = new Set(JSON.parse(localStorage.getItem(alertedKey()) || '[]'));
+
+function ding() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  [[880, 0], [1174.66, 0.18]].forEach(([f, off]) => {
+    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0, t + off);
+    g.gain.linearRampToValueAtTime(0.4, t + off + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + off + 0.6);
+    o.connect(g).connect(audioCtx.destination); o.start(t + off); o.stop(t + off + 0.65);
+  });
+}
+
+function toggleBell() {
+  bellOn = !bellOn;
+  localStorage.setItem('cz_bell', bellOn ? '1' : '0');
+  if (bellOn) {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx.resume();
+    ding(); // toque de teste — também desbloqueia o áudio neste aparelho
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  }
+  paintBell();
+}
+function paintBell() {
+  const b = $('bellBtn');
+  b.textContent = bellOn ? '🔔' : '🔕';
+  b.classList.toggle('on', bellOn);
+}
+
+function checkAlerts() {
+  // muda de dia → esquece os alertas de ontem
+  if (!localStorage.getItem(alertedKey())) alerted = new Set();
+  Object.values(live).filter((g) => !g.attendedAt).forEach((g) => {
+    const mins = minsSince(g.arrivedAt);
+    if (mins < CRIT_MIN || alerted.has(g.id)) return;
+    alerted.add(g.id);
+    localStorage.setItem(alertedKey(), JSON.stringify([...alerted]));
+    if (!bellOn) return;
+    if (audioCtx) ding();
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(`Mesa ${tablesLabel(g.tables)} à espera há ${mins} min`, {
+          body: `${paxWord(g.pax)} · entrou às ${fmtTime(g.arrivedAt)}`,
+          icon: 'assets/icon.png', tag: g.id,
+        });
+      } catch { /* iOS não suporta Notification local — o som já tocou */ }
+    }
+  });
+}
+
 function toast(msg, undoable = false) {
   clearTimeout(toastTimer);
   $('toastMsg').textContent = msg;
@@ -416,7 +473,7 @@ async function main() {
   } else {
     connLabel.textContent = window.__PREVIEW__ ? 'demo' : 'só neste aparelho';
   }
-  store.onLive((v) => { live = v || {}; renderMap(); renderQueue(); if (currentView() === 'day') renderDay(); });
+  store.onLive((v) => { live = v || {}; renderMap(); renderQueue(); checkAlerts(); if (currentView() === 'day') renderDay(); });
   store.onToday((k, v) => { todayLog = v || {}; if (currentView() === 'day') renderDay(); });
 
   if (window.__PREVIEW__) {
@@ -430,6 +487,8 @@ async function main() {
   $('btnAttend').addEventListener('click', () => { const id = activeId; closeSheet(); attend(id); });
   $('btnFree').addEventListener('click', () => { const id = activeId; closeSheet(); freeTable(id); });
   $('btnCancel').addEventListener('click', () => { const id = activeId; closeSheet(); cancelEntry(id); });
+  $('bellBtn').addEventListener('click', toggleBell);
+  paintBell();
   $('paxMinus').addEventListener('click', () => stepPax(-1));
   $('paxPlus').addEventListener('click', () => stepPax(1));
   $('toastUndo').addEventListener('click', async () => {
@@ -441,7 +500,7 @@ async function main() {
   const tickClock = () => { clock.textContent = new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }); };
   tickClock(); setInterval(tickClock, 15000);
 
-  setInterval(() => { renderMap(); renderQueue(); if (activeId) renderGroupPane(); }, 20000);
+  setInterval(() => { renderMap(); renderQueue(); checkAlerts(); if (activeId) renderGroupPane(); }, 20000);
 
   setView(localStorage.getItem('cz_view') || 'map');
 
