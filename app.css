@@ -243,6 +243,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
   border-radius:8px;padding:6px 11px;white-space:nowrap;background:var(--surface-2);color:var(--ink-2)}
 .chip.warn{background:var(--warn);color:var(--warn-ink)}
 .chip.crit{background:var(--garnet);color:var(--garnet-ink)}
+.chip.soft{background:transparent;color:var(--ink-3);font-weight:600;font-size:12.5px;padding:6px 8px;box-shadow:inset 0 0 0 1px var(--hair)}
 @keyframes pulse{50%{opacity:.5}}
 .chip.crit{animation:pulse 1.7s ease-in-out infinite}
 .btn{border-radius:var(--radius);font-weight:700;padding:13px 16px;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .07s ease,filter .14s ease}

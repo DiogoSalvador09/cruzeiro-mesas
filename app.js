@@ -43,6 +43,35 @@ const tablesLabel = (arr) => sortTables(arr).join(' + ');
 const groupOf = (table) => Object.values(live).find((g) => (g.tables || []).includes(table));
 const paxWord = (n) => `${n} ${n === 1 ? 'pessoa' : 'pessoas'}`;
 
+/* ---- tempo à mesa: aprende quanto tempo os grupos ficam (atendida→livre) ---- */
+const DINE_KEY = 'cz_dine';
+function pushDineSamples(obj) {
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(DINE_KEY) || '[]'); } catch { arr = []; }
+  const have = new Set(arr.map((s) => s.id));
+  Object.entries(obj || {}).forEach(([id, e]) => {
+    if (e.attendedAt && e.freedAt && e.freedAt > e.attendedAt && !have.has(id)) {
+      arr.push({ id, d: e.freedAt - e.attendedAt });
+    }
+  });
+  try { localStorage.setItem(DINE_KEY, JSON.stringify(arr.slice(-60))); } catch { /* cheio */ }
+}
+function avgDineMin() {
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(DINE_KEY) || '[]'); } catch { arr = []; }
+  const ds = arr.map((s) => s.d).filter((d) => d > 5 * 60000 && d < 4 * 3600000); // 5min–4h
+  if (ds.length < 4) return null; // ainda a aprender
+  ds.sort((a, b) => a - b);
+  return Math.round(ds[Math.floor(ds.length / 2)] / 60000); // mediana, em minutos
+}
+// texto do palpite "~livre em N min" para uma mesa já atendida
+function freeHint(g) {
+  const dine = avgDineMin();
+  if (!dine || !g.attendedAt) return '';
+  const est = dine - minsSince(g.attendedAt);
+  return est > 1 ? `~livre em ${est} min` : 'a terminar';
+}
+
 /* ------------------------------- mapa ------------------------------- */
 function buildMap() {
   const main = $('mapMain');
@@ -160,8 +189,9 @@ function renderGroupPane() {
   const g = live[activeId]; if (!g) { closeSheet(); return; }
   const attended = !!g.attendedAt;
   const langWord = g.lang ? `${LANG_WORD[g.lang]} · ` : '';
+  const hint = attended ? freeHint(g) : '';
   $('groupMeta').textContent = langWord + (attended
-    ? `Na sala desde ${fmtTime(g.attendedAt)} · atendida há ${minsSince(g.attendedAt)} min`
+    ? `Na sala desde ${fmtTime(g.attendedAt)} · atendida há ${minsSince(g.attendedAt)} min${hint ? ` · ${hint}` : ''}`
     : `À espera há ${minsSince(g.arrivedAt)} min · entrou às ${fmtTime(g.arrivedAt)}`);
   paintLangRow($('langRowGroup'), g.lang || null);
   $('paxValue').textContent = g.pax;
@@ -266,17 +296,27 @@ let bellOn = localStorage.getItem('cz_bell') === '1';
 const alertedKey = () => `cz_alerted_${dayKey()}`;
 let alerted = new Set(JSON.parse(localStorage.getItem(alertedKey()) || '[]'));
 
+// sino de bordo: uma pancada = fundamental + parciais inarmónicos com cauda metálica
+function strike(t0, f0, vol) {
+  // [múltiplo da frequência, ganho relativo, decaimento em s] — perfil de sino
+  const partials = [[1, 1, 1.7], [2.0, 0.6, 1.35], [2.76, 0.42, 1.05], [3.9, 0.28, 0.85], [5.4, 0.18, 0.6]];
+  partials.forEach(([mult, g0, dec]) => {
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sine';
+    o.frequency.value = f0 * mult;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol * g0, t0 + 0.004); // ataque seco (badalada)
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dec);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dec + 0.05);
+  });
+}
 function ding() {
   if (!audioCtx) return;
   const t = audioCtx.currentTime;
-  [[880, 0], [1174.66, 0.18]].forEach(([f, off]) => {
-    const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
-    o.type = 'sine'; o.frequency.value = f;
-    g.gain.setValueAtTime(0, t + off);
-    g.gain.linearRampToValueAtTime(0.4, t + off + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, t + off + 0.6);
-    o.connect(g).connect(audioCtx.destination); o.start(t + off); o.stop(t + off + 0.65);
-  });
+  strike(t, 660, 0.45);          // dois toques em par, como o sino de bordo
+  strike(t + 0.33, 660, 0.38);
 }
 
 function toggleBell() {
@@ -351,7 +391,7 @@ function renderSpotlight(waiting) {
   const next = waiting[0];
   if (!next) {
     spot.className = 'spotlight calm';
-    spot.innerHTML = '<div class="spot-eyebrow">Serviço</div><div class="spot-calm">Ninguém à espera</div><div class="spot-meta">A sala está em dia.</div>';
+    spot.innerHTML = '<div class="spot-eyebrow">Serviço</div><div class="spot-calm">Sala tranquila</div><div class="spot-meta">Mar calmo · ninguém à espera 🌊</div>';
     return;
   }
   const mins = minsSince(next.arrivedAt);
@@ -409,11 +449,14 @@ function renderQueue() {
   seated.forEach((g) => {
     const row = document.createElement('div');
     row.className = 'qcard seated-row';
+    const hint = freeHint(g);
+    const hintHtml = hint ? `<span class="chip soft">${hint}</span>` : '';
     row.innerHTML = `
       <div class="who">
         <div class="tables">${tablesLabel(g.tables)}${langBadge(g)}</div>
         <div class="meta">${paxWord(g.pax)} · atendida há ${minsSince(g.attendedAt)} min</div>
       </div>
+      ${hintHtml}
       <button class="free-btn">Libertar</button>`;
     row.querySelector('.free-btn').addEventListener('click', () => freeTable(g.id));
     row.querySelector('.who').addEventListener('click', () => openGroupSheet(g.id));
@@ -492,6 +535,7 @@ function renderHourChart(entries) {
 
 async function renderDaysTable() {
   const days = await store.fetchDays(10);
+  Object.values(days).forEach(pushDineSamples); // dias anteriores alimentam o palpite logo de manhã
   const tbody = $('daysTable').querySelector('tbody');
   const today = dayKey();
   const keys = Object.keys(days).filter((k) => k !== today).sort().reverse().slice(0, 7);
@@ -563,7 +607,12 @@ async function main() {
     connLabel.textContent = window.__PREVIEW__ ? 'demo' : 'só neste aparelho';
   }
   store.onLive((v) => { live = v || {}; renderMap(); renderQueue(); checkAlerts(); if (currentView() === 'day') renderDay(); });
-  store.onToday((k, v) => { todayLog = v || {}; if (currentView() === 'day') renderDay(); });
+  store.onToday((k, v) => {
+    todayLog = v || {};
+    pushDineSamples(todayLog); // aprende tempos à mesa à medida que as mesas libertam
+    renderQueue(); // repinta os palpites "~livre em N min"
+    if (currentView() === 'day') renderDay();
+  });
 
   if (window.__PREVIEW__) {
     $('previewPill').classList.remove('hidden');
