@@ -342,8 +342,12 @@ body.editing .tile{cursor:grab;touch-action:none}
 .wait-wrap{display:flex;flex-direction:column;gap:14px}
 .who-name{font-size:15px;font-weight:700;color:var(--ink);line-height:1.2;margin-bottom:1px}
 .wait-del{align-self:center;flex:none}
+.chip.ready{background:var(--teal);color:var(--teal-ink);font-weight:700}
 #waitLang{margin-bottom:14px}
-.wait-pax{margin-bottom:18px}
+.wait-pax{margin-bottom:14px}
+.wait-est{font-size:13px;font-weight:600;color:var(--brass);margin-bottom:16px}
+.ready-x{color:var(--sign-sub);font-size:14px;padding:6px 9px;border-radius:8px}
+#readyBar .join-bar-txt b{color:var(--sign-ink)}
 
 /* ---------- dia ---------- */
 .day-wrap{display:flex;flex-direction:column;gap:15px}

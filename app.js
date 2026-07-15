@@ -418,9 +418,11 @@ async function attend(id) {
 async function freeTable(id) {
   const g = live[id]; if (!g) return;
   const snapshot = { ...g };
+  const freed = [...(g.tables || [])];
   await store.freeGroup(g, store.stamp());
   lastAction = { undo: () => store.restoreGroup(snapshot) };
   toast(`Mesa ${tablesLabel(g.tables)} libertada`, true);
+  maybePromptSeat(freed); // há gente à espera? sugere sentar já
 }
 async function cancelEntry(id) {
   const g = live[id]; if (!g) return;
@@ -553,6 +555,24 @@ function renderSpotlight(waiting) {
 }
 
 /* -------------------- lista de espera de mesa ----------------------- */
+// estimativa de espera: usa o tempo médio à mesa aprendido + quantas mesas estão ocupadas
+function waitEstimate(index) {
+  const dine = avgDineMin();
+  if (!dine) return null; // ainda a aprender
+  const all = [...tablesConfig.esplanada, ...tablesConfig.sala];
+  const occ = {}; Object.values(live).forEach((g) => (g.tables || []).forEach((t) => { occ[t] = g; }));
+  const openings = all.map((t) => {
+    const g = occ[t];
+    if (!g) return 0; // livre agora
+    return g.attendedAt ? Math.max(0, dine - minsSince(g.attendedAt)) : dine; // a comer / acabou de sentar
+  }).sort((a, b) => a - b);
+  const raw = index < openings.length ? openings[index] : (openings[openings.length - 1] || 0) + dine;
+  return raw <= 2 ? 0 : Math.max(5, Math.round(raw / 5) * 5); // 0 = já livre; senão arredonda a 5 min
+}
+function estChipHtml(est) {
+  if (est === null) return '';
+  return est === 0 ? '<span class="chip ready">mesa livre</span>' : `<span class="chip soft">~${est} min</span>`;
+}
 function renderWait() {
   const parties = Object.values(waitlist).sort((a, b) => a.addedAt - b.addedAt);
   const badge = $('waitBadge');
@@ -568,6 +588,7 @@ function renderWait() {
         <div class="tables">${w.name || 'Sem nome'}${w.lang ? `<span class="lang-badge">${w.lang.toUpperCase()}</span>` : ''}</div>
         <div class="meta">${paxWord(w.pax)} · há ${minsSince(w.addedAt)} min</div>
       </div>
+      ${estChipHtml(waitEstimate(i))}
       <button class="attend seat-btn">Sentar</button>
       <button class="t-del wait-del" aria-label="Remover da espera">✕</button>`;
     card.querySelector('.seat-btn').addEventListener('click', () => startSeating(w.id));
@@ -586,6 +607,8 @@ function removeWaitParty(id) {
 function openWaitAdd() {
   waitVal = 2; waitLang = null;
   $('waitName').value = ''; paintLangRow($('waitLang'), null); $('waitValue').textContent = waitVal;
+  const est = waitEstimate(Object.keys(waitlist).length); // estimativa para o próximo da fila
+  $('waitEstHint').textContent = est === null ? '' : est === 0 ? 'Há mesa livre agora — dá para sentar já.' : `Espera estimada: ~${est} min`;
   $('waitScrim').classList.remove('hidden'); $('waitBox').classList.remove('hidden');
   setTimeout(() => $('waitName').focus(), 60);
 }
@@ -600,13 +623,28 @@ async function confirmWaitAdd() {
 }
 
 // sentar alguém da espera: escolhe a(s) mesa(s) no mapa e confirma
-function startSeating(id) {
+function startSeating(id, presetTable) {
   const w = waitlist[id]; if (!w) return;
-  seatingWait = { ...w }; selection = [];
+  hideReady();
+  seatingWait = { ...w }; selection = presetTable && !groupOf(presetTable) ? [presetTable] : [];
   setView('map');
   $('seatBar').classList.remove('hidden');
   updateSeatBar(); renderMap();
 }
+
+/* alerta "mesa livre" — quando libertas e há gente à espera, sugere sentar já */
+let readyTimer = null; let pendingReady = null;
+function maybePromptSeat(freedTables) {
+  const parties = Object.values(waitlist).sort((a, b) => a.addedAt - b.addedAt);
+  if (!parties.length) return;
+  const next = parties[0];
+  const table = sortTables(freedTables)[0];
+  pendingReady = { waitId: next.id, table };
+  $('readyTxt').innerHTML = `Mesa <b>${table}</b> livre · sentar <b>${next.name || 'próximo'}</b> (${next.pax}p)?`;
+  $('readyBar').classList.remove('hidden');
+  clearTimeout(readyTimer); readyTimer = setTimeout(hideReady, 20000);
+}
+function hideReady() { $('readyBar').classList.add('hidden'); clearTimeout(readyTimer); }
 function updateSeatBar() {
   if (!seatingWait) return;
   const who = `${seatingWait.name || 'Grupo'} (${seatingWait.pax}p)`;
@@ -996,6 +1034,8 @@ async function main() {
     paintLangRow($('waitLang'), waitLang);
   }));
   $('seatDone').addEventListener('click', confirmSeat);
+  $('readySeat').addEventListener('click', () => { if (pendingReady) startSeating(pendingReady.waitId, pendingReady.table); });
+  $('readyDismiss').addEventListener('click', hideReady);
   $('addCancel').addEventListener('click', closeAdd);
   $('addScrim').addEventListener('click', closeAdd);
   $('addConfirm').addEventListener('click', () => { addTable($('addInput').value, addSection); closeAdd(); });

@@ -154,6 +154,13 @@
   <button id="seatDone" class="join-done">Sentar ✓</button>
 </div>
 
+<!-- alerta "mesa livre" quando há gente à espera -->
+<div class="join-bar hidden" id="readyBar">
+  <div class="join-bar-txt" id="readyTxt"></div>
+  <button id="readySeat" class="join-done">Sentar</button>
+  <button id="readyDismiss" class="ready-x" aria-label="Dispensar">✕</button>
+</div>
+
 <!-- ============ FOLHA: NOVA ENTRADA / MESA ============ -->
 <div class="sheet-scrim hidden" id="scrim"></div>
 <div class="sheet hidden" id="sheet" role="dialog" aria-modal="true">
@@ -235,6 +242,7 @@
       <button id="waitPlus" aria-label="Mais uma pessoa">+</button>
     </div>
   </div>
+  <div id="waitEstHint" class="wait-est"></div>
   <div class="confirm-actions">
     <button class="btn ghost" id="waitCancel">Cancelar</button>
     <button class="btn primary" id="waitConfirm">Adicionar</button>
