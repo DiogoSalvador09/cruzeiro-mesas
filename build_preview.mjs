@@ -9,7 +9,7 @@ const out = process.argv[2] || join(root, 'preview.html');
 
 const html = readFileSync(join(root, 'index.html'), 'utf8');
 const css = readFileSync(join(root, 'app.css'), 'utf8');
-const logo = readFileSync(join(root, 'assets/logo.png'));
+const logo = readFileSync(join(root, 'assets/icon.png'));
 const dataUri = `data:image/png;base64,${logo.toString('base64')}`;
 
 const stripModules = (src) => src
@@ -22,7 +22,7 @@ const js = ['firebase-config.js', 'store.js', 'app.js']
 
 let body = html.match(/<body>([\s\S]*)<\/body>/)[1]
   .replace(/<script type="module" src="app\.js"><\/script>/, '')
-  .replaceAll('assets/logo.jpg', dataUri);
+  .replaceAll('assets/icon.png', dataUri);
 
 writeFileSync(out, `<title>O Cruzeiro · Mesas</title>
 <style>

@@ -9,6 +9,6 @@
   "theme_color": "#0A0C10",
   "lang": "pt-PT",
   "icons": [
-    { "src": "assets/logo.png", "sizes": "960x958", "type": "image/png", "purpose": "any" }
+    { "src": "assets/icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }
