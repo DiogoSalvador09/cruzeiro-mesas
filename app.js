@@ -23,6 +23,7 @@ let selection = [];       // mesas escolhidas na nova entrada
 let selLang = null;       // 'es' | 'en' | null (null = português)
 let joining = false;      // modo "juntar mesas" (mapa tocável, folha escondida)
 let bigVal = 14;          // stepper de grupo grande
+let reseatId = null;      // grupo a arquivar quando o novo for confirmado (sentar novo grupo)
 const LANG_WORD = { es: 'Espanhol', en: 'Inglês' };
 let activeId = null;      // grupo aberto na folha
 let lastAction = null;    // para o Anular
@@ -157,25 +158,33 @@ function openGroupSheet(id) {
 
 function renderGroupPane() {
   const g = live[activeId]; if (!g) { closeSheet(); return; }
-  const waiting = !g.attendedAt;
+  const attended = !!g.attendedAt;
   const langWord = g.lang ? `${LANG_WORD[g.lang]} · ` : '';
-  $('groupMeta').textContent = langWord + (waiting
-    ? `Entrou às ${fmtTime(g.arrivedAt)} · à espera há ${minsSince(g.arrivedAt)} min`
-    : `Entrou às ${fmtTime(g.arrivedAt)} · atendida às ${fmtTime(g.attendedAt)}`);
+  $('groupMeta').textContent = langWord + (attended
+    ? `Na sala desde ${fmtTime(g.attendedAt)} · atendida há ${minsSince(g.attendedAt)} min`
+    : `À espera há ${minsSince(g.arrivedAt)} min · entrou às ${fmtTime(g.arrivedAt)}`);
   paintLangRow($('langRowGroup'), g.lang || null);
   $('paxValue').textContent = g.pax;
-  $('btnAttend').classList.toggle('hidden', !waiting);
-  const free = $('btnFree');
-  free.classList.remove('hidden');
-  free.className = waiting ? 'btn ghost big' : 'btn success big';
-  free.id = 'btnFree';
+  $('btnAttend').classList.toggle('hidden', attended);
+  $('btnReseat').classList.toggle('hidden', !attended);
+  $('btnFree').className = 'btn ghost big';
+  $('btnFree').textContent = attended ? 'Mesa livre — saíram' : 'Libertar (saíram sem pedir)';
+}
+
+// tocar numa mesa já atendida → arquivar o grupo e sentar já um novo nas mesmas mesas
+function reseatFrom(id) {
+  const g = live[id]; if (!g) return;
+  reseatId = id;
+  selection = [...g.tables];
+  openNewSheet(true); // pax picker limpo para as mesmas mesas; só arquiva o antigo ao confirmar
+  $('sheetSub').textContent = 'Sentar novo grupo · o anterior vai para o histórico';
 }
 
 function showSheet() { $('sheet').classList.remove('hidden'); $('scrim').classList.remove('hidden'); }
 function closeSheet() {
   $('sheet').classList.add('hidden'); $('scrim').classList.add('hidden');
   $('joinBar').classList.add('hidden'); joining = false;
-  selection = []; activeId = null;
+  selection = []; activeId = null; reseatId = null;
   renderMap();
 }
 
@@ -220,13 +229,13 @@ function paintBig() {
 }
 
 async function confirmNew(pax) {
-  const g = {
-    id: newId(), tables: sortTables(selection), pax, arrivedAt: store.stamp(),
-    ...(selLang ? { lang: selLang } : {}),
-  };
-  closeSheet();
+  const tables = sortTables(selection);
+  const g = { id: newId(), tables, pax, arrivedAt: store.stamp(), ...(selLang ? { lang: selLang } : {}) };
+  const oldSnap = reseatId && live[reseatId] ? { ...live[reseatId] } : null;
+  closeSheet(); // limpa selection, reseatId, etc.
+  if (oldSnap) await store.freeGroup(oldSnap, store.stamp()); // grupo anterior → histórico
   await store.addGroup(g);
-  toast(`Mesa ${tablesLabel(g.tables)} · ${paxWord(pax)}${g.lang ? ` · ${LANG_WORD[g.lang]}` : ''} ✓`);
+  toast(`Mesa ${tablesLabel(tables)} · ${paxWord(pax)}${g.lang ? ` · ${LANG_WORD[g.lang]}` : ''} ✓`);
 }
 
 /* ------------------------------ ações ------------------------------- */
@@ -565,6 +574,7 @@ async function main() {
   $('scrim').addEventListener('click', closeSheet);
   $('sheetClose').addEventListener('click', closeSheet);
   $('btnAttend').addEventListener('click', () => { const id = activeId; closeSheet(); attend(id); });
+  $('btnReseat').addEventListener('click', () => reseatFrom(activeId));
   $('btnFree').addEventListener('click', () => { const id = activeId; closeSheet(); freeTable(id); });
   $('btnCancel').addEventListener('click', () => { const id = activeId; closeSheet(); cancelEntry(id); });
   $('joinBtn').addEventListener('click', enterJoinMode);
