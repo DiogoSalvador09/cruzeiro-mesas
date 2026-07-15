@@ -59,12 +59,16 @@
     <div class="map-wrap">
       <div class="map-head">
         <span class="section-label">Esplanada</span>
-        <span class="map-legend">
-          <span class="lg"><i class="sw free"></i>livre</span>
-          <span class="lg"><i class="sw wait"></i>à espera</span>
-          <span class="lg"><i class="sw done"></i>atendida</span>
-        </span>
+        <div class="map-head-right">
+          <span class="map-legend">
+            <span class="lg"><i class="sw free"></i>livre</span>
+            <span class="lg"><i class="sw wait"></i>à espera</span>
+            <span class="lg"><i class="sw done"></i>atendida</span>
+          </span>
+          <button id="editBtn" class="edit-btn">✎ Editar</button>
+        </div>
       </div>
+      <div id="editHint" class="edit-hint hidden">Toca no <b>✕</b> para remover · no <b>＋</b> para adicionar. As mudanças aparecem em todos os aparelhos.</div>
       <div class="map-grid" id="mapMain"><!-- tiles --></div>
       <div class="map-head sala"><span class="section-label">Sala</span></div>
       <div class="map-grid sala-grid" id="mapSala"><!-- tiles --></div>
@@ -186,6 +190,18 @@
 <div class="toast hidden" id="toast">
   <span id="toastMsg"></span>
   <button id="toastUndo" class="toast-undo hidden">Anular</button>
+</div>
+
+<!-- adicionar mesa -->
+<div class="confirm-scrim hidden" id="addScrim"></div>
+<div class="confirm hidden" id="addBox" role="dialog" aria-modal="true" aria-labelledby="addTitle">
+  <div class="confirm-title" id="addTitle">Nova mesa</div>
+  <div class="confirm-body">Número ou nome da mesa a acrescentar.</div>
+  <input id="addInput" class="add-input" type="text" inputmode="text" autocomplete="off" placeholder="ex.: 131">
+  <div class="confirm-actions">
+    <button class="btn ghost" id="addCancel">Cancelar</button>
+    <button class="btn primary" id="addConfirm">Adicionar</button>
+  </div>
 </div>
 
 <!-- confirmação de limpar tudo -->

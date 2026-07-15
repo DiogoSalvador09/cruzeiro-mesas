@@ -1,8 +1,8 @@
 // O Cruzeiro · Mesas — lógica principal
 import { createStore, dayKey, newId } from './store.js';
 
-/* ------------------- mesas (fiel à folha no balcão) ------------------- */
-const MAIN_ROWS = [
+/* --- disposição por omissão (fiel à folha do balcão); depois é editável e sincronizada --- */
+const DEFAULT_ROWS = [
   ['100', '101', '102', '103'],
   ['108', '107', '105', '104'],
   ['109', '110', '111', '112'],
@@ -10,9 +10,9 @@ const MAIN_ROWS = [
   ['117', '118', '119', '120'],
   ['124', '123', '122', '121'],
   ['125', '126', '127', '128'],
-  ['129', '130'],
 ];
-const SALA = ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5', 'Sala 6'];
+const DEFAULT_SALA = ['Sala 1', 'Sala 2', 'Sala 3', 'Sala 4', 'Sala 5', 'Sala 6'];
+const defaultTables = () => ({ esplanada: DEFAULT_ROWS.flat().filter(Boolean), sala: [...DEFAULT_SALA] });
 const WARN_MIN = 5;   // fica laranja
 const CRIT_MIN = 10;  // fica vermelho a piscar
 
@@ -30,6 +30,11 @@ let activeId = null;      // grupo aberto na folha
 let lastAction = null;    // para o Anular
 let toastTimer = null;
 const tiles = {};         // mesa -> elemento
+let tablesConfig = defaultTables(); // { esplanada:[], sala:[] } — sincronizado
+let editMode = false;     // modo "editar mesas" (adicionar/remover)
+let firstBuild = true;    // anima os tiles só no primeiro desenho
+let staggerN = 0;
+let addSection = 'esplanada';
 
 const $ = (id) => document.getElementById(id);
 const fmtTime = (ts) => new Date(ts).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
@@ -74,38 +79,92 @@ function freeHint(g) {
 }
 
 /* ------------------------------- mapa ------------------------------- */
+function makeTile(t, i, section) {
+  const el = document.createElement('button');
+  el.className = 'tile';
+  if (section === 'esplanada' && i != null) { // fluxo de 4 colunas, como a folha
+    el.style.gridColumn = String((i % 4) + 1);
+    el.style.gridRow = String(Math.floor(i / 4) + 1);
+  }
+  if (firstBuild) el.style.setProperty('--i', String(staggerN++)); else el.style.animation = 'none';
+  el.innerHTML = `<span class="num">${t}</span><span class="sub"></span>`;
+  el.setAttribute('aria-label', `Mesa ${t}`);
+  el.addEventListener('click', () => onTileTap(t));
+  if (editMode) {
+    el.classList.add('editing');
+    const x = document.createElement('span');
+    x.className = 'tile-x'; x.textContent = '✕';
+    x.setAttribute('aria-label', `Remover mesa ${t}`);
+    x.addEventListener('click', (e) => { e.stopPropagation(); removeTable(t, section); });
+    el.appendChild(x);
+  }
+  tiles[t] = el;
+  return el;
+}
+function makeAddTile(section, i) {
+  const el = document.createElement('button');
+  el.className = 'tile add-tile'; el.style.animation = 'none';
+  if (section === 'esplanada' && i != null) {
+    el.style.gridColumn = String((i % 4) + 1);
+    el.style.gridRow = String(Math.floor(i / 4) + 1);
+  }
+  el.innerHTML = '<span class="num">＋</span><span class="sub">mesa</span>';
+  el.setAttribute('aria-label', 'Adicionar mesa');
+  el.addEventListener('click', () => openAddTable(section));
+  return el;
+}
 function buildMap() {
-  const main = $('mapMain');
-  MAIN_ROWS.forEach((row, ri) => {
-    row.forEach((t, ci) => {
-      const el = document.createElement('button');
-      el.className = 'tile';
-      el.style.gridColumn = String(ci + 1);
-      el.style.gridRow = String(ri + 1);
-      if (t === null) { el.classList.add('gap'); el.disabled = true; el.setAttribute('aria-hidden', 'true'); }
-      else {
-        el.innerHTML = `<span class="num">${t}</span><span class="sub"></span>`;
-        el.setAttribute('aria-label', `Mesa ${t}`);
-        el.addEventListener('click', () => onTileTap(t));
-        tiles[t] = el;
-      }
-      main.appendChild(el);
-    });
-  });
-  const b = document.createElement('div'); // balcão ao lado das filas 3–4, como na folha
+  staggerN = 0;
+  Object.keys(tiles).forEach((k) => delete tiles[k]);
+  const main = $('mapMain'); main.innerHTML = '';
+  tablesConfig.esplanada.forEach((t, i) => main.appendChild(makeTile(t, i, 'esplanada')));
+  if (editMode) main.appendChild(makeAddTile('esplanada', tablesConfig.esplanada.length));
+  const b = document.createElement('div'); // balcão (decorativo, não conta)
   b.className = 'balcao'; b.textContent = 'BALCÃO';
   main.appendChild(b);
-  const sala = $('mapSala');
-  SALA.forEach((t) => {
-    const el = document.createElement('button');
-    el.className = 'tile';
-    el.innerHTML = `<span class="num">${t}</span><span class="sub"></span>`;
-    el.setAttribute('aria-label', `Mesa ${t}`);
-    el.addEventListener('click', () => onTileTap(t));
-    tiles[t] = el;
-    sala.appendChild(el);
-  });
+  const sala = $('mapSala'); sala.innerHTML = '';
+  tablesConfig.sala.forEach((t) => sala.appendChild(makeTile(t, null, 'sala')));
+  if (editMode) sala.appendChild(makeAddTile('sala', null));
+  firstBuild = false;
 }
+function applyConfig(cfg) {
+  tablesConfig = cfg && cfg.esplanada
+    ? { esplanada: cfg.esplanada || [], sala: cfg.sala || [] }
+    : defaultTables();
+  buildMap(); renderMap();
+}
+
+/* ----------------------- editar mesas (add/remove) ------------------ */
+function toggleEdit() {
+  editMode = !editMode;
+  document.body.classList.toggle('editing', editMode);
+  $('editBtn').textContent = editMode ? '✓ Concluir' : '✎ Editar';
+  $('editHint').classList.toggle('hidden', !editMode);
+  buildMap(); renderMap();
+}
+function removeTable(t, section) {
+  if (groupOf(t)) { toast('Mesa ocupada — liberta primeiro'); return; }
+  const cfg = { esplanada: [...tablesConfig.esplanada], sala: [...tablesConfig.sala] };
+  cfg[section] = cfg[section].filter((x) => x !== t);
+  applyConfig(cfg); store.setTables(cfg);
+}
+function addTable(label, section) {
+  const l = (label || '').trim();
+  if (!l) return;
+  if (tablesConfig.esplanada.includes(l) || tablesConfig.sala.includes(l)) { toast('Essa mesa já existe'); return; }
+  const cfg = { esplanada: [...tablesConfig.esplanada], sala: [...tablesConfig.sala] };
+  cfg[section].push(l);
+  applyConfig(cfg); store.setTables(cfg);
+  toast(`Mesa ${l} adicionada`);
+}
+function openAddTable(section) {
+  addSection = section;
+  const nums = tablesConfig[section].map((x) => parseInt(x, 10)).filter((n) => !Number.isNaN(n));
+  $('addInput').value = section === 'esplanada' && nums.length ? String(Math.max(...nums) + 1) : '';
+  $('addScrim').classList.remove('hidden'); $('addBox').classList.remove('hidden');
+  setTimeout(() => $('addInput').focus(), 60);
+}
+function closeAdd() { $('addScrim').classList.add('hidden'); $('addBox').classList.add('hidden'); }
 
 function renderMap() {
   Object.entries(tiles).forEach(([t, el]) => {
@@ -132,6 +191,7 @@ function renderMap() {
 
 /* --------------------------- interações ----------------------------- */
 function onTileTap(t) {
+  if (editMode) return; // em edição, o tile só remove (pelo ✕); toque no corpo não faz nada
   if (joining) {
     // modo juntar: alterna mesas livres na seleção (ocupadas ignoram-se)
     if (groupOf(t)) return;
@@ -689,6 +749,7 @@ async function main() {
   } else {
     connLabel.textContent = window.__PREVIEW__ ? 'demo' : 'só neste aparelho';
   }
+  store.onConfig(applyConfig); // disposição de mesas sincronizada
   store.onLive((v) => { live = v || {}; renderMap(); renderQueue(); checkAlerts(); if (currentView() === 'day') renderDay(); });
   store.onToday((k, v) => {
     todayLog = v || {};
@@ -723,6 +784,11 @@ async function main() {
   $('confirmCancel').addEventListener('click', closeConfirm);
   $('confirmScrim').addEventListener('click', closeConfirm);
   $('confirmWipe').addEventListener('click', doWipe);
+  $('editBtn').addEventListener('click', toggleEdit);
+  $('addCancel').addEventListener('click', closeAdd);
+  $('addScrim').addEventListener('click', closeAdd);
+  $('addConfirm').addEventListener('click', () => { addTable($('addInput').value, addSection); closeAdd(); });
+  $('addInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { addTable($('addInput').value, addSection); closeAdd(); } });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!localStorage.getItem('cz_theme')) paintTheme(); });
   $('paxMinus').addEventListener('click', () => stepPax(-1));
   $('paxPlus').addEventListener('click', () => stepPax(1));

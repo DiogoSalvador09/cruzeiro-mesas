@@ -63,6 +63,15 @@ async function firebaseStore(cfg) {
     },
     removeDayEntry(dk, id) { return remove(ref(db, `days/${dk}/${id}`)); },
     addDayEntry(dk, id, entry) { return set(ref(db, `days/${dk}/${id}`), clean(entry)); },
+    onConfig(cb) {
+      try { const m = JSON.parse(localStorage.getItem('cz_tables') || 'null'); if (m) cb(m); } catch { /* nada */ }
+      onValue(ref(db, 'config/tables'), (s) => {
+        const v = s.val();
+        if (v) { try { localStorage.setItem('cz_tables', JSON.stringify(v)); } catch { /* cheio */ } }
+        cb(v || null);
+      });
+    },
+    setTables(cfg) { try { localStorage.setItem('cz_tables', JSON.stringify(cfg)); } catch { /* cheio */ } return set(ref(db, 'config/tables'), cfg); },
     async fetchDays(n) {
       const s = await get(query(ref(db, 'days'), orderByKey(), limitToLast(n)));
       return s.val() || {};
@@ -82,12 +91,14 @@ function localStore() {
   const write = (k, v) => localStorage.setItem(k, JSON.stringify(v));
   const bc = 'BroadcastChannel' in window ? new BroadcastChannel('cz') : null;
 
-  let liveCbs = []; let todayCbs = [];
+  let liveCbs = []; let todayCbs = []; let cfgCbs = [];
+  const readCfg = () => { try { return JSON.parse(localStorage.getItem('cz_tables') || 'null'); } catch { return null; } };
   const emitLive = () => { const v = read(LIVE); liveCbs.forEach((cb) => cb(v)); };
   const emitToday = () => { const k = dayKey(); const v = read(DAYS)[k] || {}; todayCbs.forEach((cb) => cb(k, v)); };
+  const emitCfg = () => { const v = readCfg(); cfgCbs.forEach((cb) => cb(v)); };
   const broadcast = () => { bc && bc.postMessage('sync'); };
-  if (bc) bc.onmessage = () => { emitLive(); emitToday(); };
-  window.addEventListener('storage', () => { emitLive(); emitToday(); });
+  if (bc) bc.onmessage = () => { emitLive(); emitToday(); emitCfg(); };
+  window.addEventListener('storage', () => { emitLive(); emitToday(); emitCfg(); });
 
   return {
     mode: 'local',
@@ -121,6 +132,8 @@ function localStore() {
     },
     async removeDayEntry(dk, id) { const days = read(DAYS); if (days[dk]) { delete days[dk][id]; write(DAYS, days); } emitToday(); broadcast(); },
     async addDayEntry(dk, id, entry) { const days = read(DAYS); days[dk] = days[dk] || {}; days[dk][id] = entry; write(DAYS, days); emitToday(); broadcast(); },
+    onConfig(cb) { cfgCbs.push(cb); cb(readCfg()); },
+    setTables(cfg) { localStorage.setItem('cz_tables', JSON.stringify(cfg)); emitCfg(); broadcast(); },
     async fetchDays(n) {
       const days = read(DAYS);
       return Object.fromEntries(Object.keys(days).sort().slice(-n).map((k) => [k, days[k]]));

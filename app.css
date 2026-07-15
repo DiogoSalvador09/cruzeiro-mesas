@@ -178,6 +178,16 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 
 /* ---------- mapa ---------- */
 .map-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px;margin:2px 2px 13px}
+.map-head-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.edit-btn{font-size:12.5px;font-weight:600;color:var(--brass);padding:6px 12px;border-radius:8px;border:1px solid color-mix(in srgb,var(--brass) 45%,transparent);transition:background .15s ease}
+.edit-btn:hover{background:color-mix(in srgb,var(--brass) 10%,transparent)}
+.edit-hint{font-size:12.5px;color:var(--ink-2);background:var(--surface-2);border-radius:8px;padding:9px 12px;margin:0 2px 13px;border-left:2px solid var(--brass);line-height:1.45}
+body.editing .map-legend{display:none}
+.tile.editing{overflow:visible}
+.tile>.tile-x{position:absolute;top:-8px;right:-8px;width:23px;height:23px;border-radius:50%;background:var(--garnet);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;z-index:4;box-shadow:0 2px 7px rgba(0,0,0,.45);border:2px solid var(--surface)}
+.tile.add-tile{background:transparent;border:1.5px dashed var(--brass);box-shadow:none;color:var(--brass)}
+.tile.add-tile .num{color:var(--brass);font-size:24px}
+.tile.add-tile .sub{color:var(--brass);opacity:.85;font-family:var(--sans);text-transform:uppercase;letter-spacing:.1em;font-size:10px}
 .map-head.sala{margin-top:26px}
 .map-legend{display:flex;gap:14px;font-size:11.5px;color:var(--ink-2)}
 .lg{display:flex;align-items:center;gap:6px}
@@ -338,6 +348,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 .confirm-actions{display:flex;gap:11px}
 .confirm-actions .btn{flex:1;padding:14px}
 .btn.danger{background:var(--garnet);color:var(--garnet-ink)}
+.add-input{width:100%;padding:13px 15px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:18px;margin-bottom:18px;font-variant-numeric:lining-nums tabular-nums}
+.add-input:focus{outline:2px solid var(--brass);outline-offset:0;border-color:var(--brass)}
 
 /* ---------- folha (bottom sheet) ---------- */
 .sheet-scrim{position:fixed;inset:0;background:rgba(6,8,12,.6);z-index:30;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
