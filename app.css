@@ -279,6 +279,18 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 .hour-labels span{flex:1;text-align:center;font-size:10.5px;color:var(--ink-3);font-variant-numeric:lining-nums tabular-nums}
 .chart-tip{position:absolute;z-index:5;pointer-events:none;background:var(--ink);color:var(--bg-0);font-size:12.5px;font-weight:600;padding:5px 9px;border-radius:7px;white-space:nowrap;transform:translate(-50%,-115%);font-variant-numeric:lining-nums tabular-nums}
 .chart-card{position:relative}
+.today-list{display:flex;flex-direction:column}
+.today-row{display:flex;align-items:center;gap:11px;padding:10px 2px;border-bottom:1px solid var(--hair)}
+.today-row:last-child{border-bottom:0}
+.t-tables{font-family:var(--num);font-size:19px;font-weight:600;font-variant-numeric:lining-nums tabular-nums;min-width:66px}
+.t-meta{flex:1;min-width:0;font-size:13px;color:var(--ink-2);font-variant-numeric:lining-nums tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-status{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.t-status.waiting{color:var(--garnet);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--garnet) 55%,transparent)}
+.t-status.seated{color:var(--teal);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--teal-line) 55%,transparent)}
+.t-status.gone{color:var(--ink-3);box-shadow:inset 0 0 0 1px var(--hair)}
+.t-del{color:var(--ink-3);font-size:14px;padding:6px 10px;border-radius:7px;background:var(--surface-2);transition:color .15s ease}
+.t-del:hover{color:var(--garnet)}
+
 .days-table{width:100%;border-collapse:collapse;font-variant-numeric:lining-nums tabular-nums}
 .days-table th{font-size:10px;text-transform:uppercase;letter-spacing:.16em;color:var(--brass);font-weight:600;text-align:left;padding:5px 6px;border-bottom:1px solid var(--hair)}
 .days-table td{padding:9px 6px;border-bottom:1px solid var(--hair);font-size:14.5px}

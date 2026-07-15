@@ -487,7 +487,46 @@ function renderDay() {
   $('statRow').innerHTML = stats.map((s) => `<div class="stat"><div class="v">${s.v}</div><div class="l">${s.l}</div></div>`).join('');
 
   renderHourChart(entries);
+  renderTodayList();
   renderDaysTable();
+}
+
+// lista de todos os grupos de hoje (ativos + já saíram) com eliminar — corrigir enganos
+function renderTodayList() {
+  const rows = [
+    ...Object.entries(live).map(([id, e]) => ({ id, e, src: 'live' })),
+    ...Object.entries(todayLog).map(([id, e]) => ({ id, e, src: 'day' })),
+  ].sort((a, b) => b.e.arrivedAt - a.e.arrivedAt);
+  const list = $('todayList'); list.innerHTML = '';
+  rows.forEach(({ id, e, src }) => {
+    const state = src === 'day' ? { cls: 'gone', txt: 'saiu' }
+      : e.attendedAt ? { cls: 'seated', txt: 'na sala' } : { cls: 'waiting', txt: 'à espera' };
+    const lang = e.lang ? ` · ${e.lang.toUpperCase()}` : '';
+    const row = document.createElement('div');
+    row.className = 'today-row';
+    row.innerHTML = `
+      <span class="t-tables">${tablesLabel(e.tables)}</span>
+      <span class="t-meta">${paxWord(e.pax)}${lang} · ${fmtTime(e.arrivedAt)}</span>
+      <span class="t-status ${state.cls}">${state.txt}</span>
+      <button class="t-del" aria-label="Eliminar grupo">✕</button>`;
+    row.querySelector('.t-del').addEventListener('click', () => deleteEntry(id, e, src));
+    list.appendChild(row);
+  });
+  $('todayList').classList.toggle('hidden', !rows.length);
+  $('todayEmpty').classList.toggle('hidden', !!rows.length);
+}
+
+async function deleteEntry(id, e, src) {
+  const snap = { ...e };
+  if (src === 'live') {
+    await store.removeGroup(id);
+    lastAction = { undo: () => store.addGroup({ id, ...snap }) };
+  } else {
+    const dk = dayKey(e.arrivedAt);
+    await store.removeDayEntry(dk, id);
+    lastAction = { undo: () => store.addDayEntry(dk, id, snap) };
+  }
+  toast(`Mesa ${tablesLabel(e.tables)} eliminada`, true);
 }
 
 function renderHourChart(entries) {

@@ -61,6 +61,8 @@ async function firebaseStore(cfg) {
       const entry = clean({ ...g }); delete entry.id; delete entry.freedAt;
       await set(ref(db, `live/${g.id}`), entry);
     },
+    removeDayEntry(dk, id) { return remove(ref(db, `days/${dk}/${id}`)); },
+    addDayEntry(dk, id, entry) { return set(ref(db, `days/${dk}/${id}`), clean(entry)); },
     async fetchDays(n) {
       const s = await get(query(ref(db, 'days'), orderByKey(), limitToLast(n)));
       return s.val() || {};
@@ -112,6 +114,8 @@ function localStore() {
       v[g.id] = entry; write(LIVE, v);
       emitLive(); emitToday(); broadcast();
     },
+    async removeDayEntry(dk, id) { const days = read(DAYS); if (days[dk]) { delete days[dk][id]; write(DAYS, days); } emitToday(); broadcast(); },
+    async addDayEntry(dk, id, entry) { const days = read(DAYS); days[dk] = days[dk] || {}; days[dk][id] = entry; write(DAYS, days); emitToday(); broadcast(); },
     async fetchDays(n) {
       const days = read(DAYS);
       return Object.fromEntries(Object.keys(days).sort().slice(-n).map((k) => [k, days[k]]));
