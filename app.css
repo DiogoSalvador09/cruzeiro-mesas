@@ -79,6 +79,30 @@
 
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
+
+/* ---------- ecrã de bloqueio (código) — sempre noturno, a "porta" da app ---------- */
+.lock{
+  position:fixed;inset:0;z-index:100;
+  background:radial-gradient(130% 60% at 50% 120%, rgba(206,150,66,.10), transparent 58%), linear-gradient(180deg,#0A0C10,#0C0F14);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  padding:calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+  color:#F2EEE3;text-align:center;
+}
+:root[data-unlocked="1"] .lock{display:none}
+.lock-logo{width:66px;height:66px;border-radius:50%;object-fit:cover;margin-bottom:2px}
+.lock-title{font-family:'Sign Script',"Snell Roundhand",cursive;font-size:38px;line-height:1;text-shadow:0 0 24px rgba(242,238,227,.28)}
+.lock-sub{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#9AA3B0}
+.lock-dots{display:flex;gap:15px;margin:12px 0 8px}
+.lock-dots i{width:13px;height:13px;border-radius:50%;border:1.5px solid rgba(200,169,97,.5);transition:background .12s,border-color .12s}
+.lock-dots i.on{background:#C8A961;border-color:#C8A961}
+.lock-pad{display:grid;grid-template-columns:repeat(3,74px);gap:15px}
+.lock-pad button{height:74px;border-radius:50%;font-family:'Numeral',Georgia,serif;font-size:29px;font-weight:600;color:#F2EEE3;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);transition:background .1s ease}
+.lock-pad button:active{background:rgba(200,169,97,.2)}
+.lock-pad .lock-back{background:transparent;border:0;font-size:22px;color:#9AA3B0}
+.lock-pad span{visibility:hidden}
+.lock.shake{animation:shake .42s}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-9px)}40%,80%{transform:translateX(9px)}}
+@media (prefers-reduced-motion: reduce){.lock.shake{animation:none}}
 body{
   isolation:isolate;
   background:

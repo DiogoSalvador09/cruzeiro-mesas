@@ -12,10 +12,24 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Mesas">
-<script>try{var t=localStorage.getItem('cz_theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch(e){}</script>
+<script>try{var t=localStorage.getItem('cz_theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;if(localStorage.getItem('cz_unlocked')==='1')document.documentElement.dataset.unlocked='1';}catch(e){}</script>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
+
+<!-- ecrã de bloqueio (código) -->
+<div id="lock" class="lock">
+  <img class="lock-logo" src="assets/icon.png" alt="O Cruzeiro">
+  <div class="lock-title">O Cruzeiro</div>
+  <div class="lock-sub">Introduz o código</div>
+  <div class="lock-dots" id="lockDots"><i></i><i></i><i></i><i></i></div>
+  <div class="lock-pad" id="lockPad">
+    <button>1</button><button>2</button><button>3</button>
+    <button>4</button><button>5</button><button>6</button>
+    <button>7</button><button>8</button><button>9</button>
+    <span></span><button>0</button><button class="lock-back" data-back aria-label="Apagar">⌫</button>
+  </div>
+</div>
 
 <header class="topbar">
   <img class="logo" src="assets/icon.png" alt="O Cruzeiro">

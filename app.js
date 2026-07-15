@@ -643,6 +643,35 @@ async function seedPreview() {
   }
 }
 
+/* --------------------------- código de acesso ----------------------- */
+// Porta leve: mantém curiosos e enganos fora e é lembrada por aparelho.
+// NÃO é segurança a sério da base de dados (a config é pública) — para trancar
+// mesmo os dados era preciso Firebase Auth. Ver nota ao Diogo.
+const PIN = atob('ODkwMA=='); // 8900
+const PIN_KEY = 'cz_unlocked';
+let pinBuf = '';
+const locked = () => localStorage.getItem(PIN_KEY) !== '1';
+function showLock(onOk) {
+  const dotsEl = $('lockDots');
+  const paint = () => [...dotsEl.children].forEach((d, i) => d.classList.toggle('on', i < pinBuf.length));
+  const fail = () => { const l = $('lock'); l.classList.add('shake'); setTimeout(() => { l.classList.remove('shake'); pinBuf = ''; paint(); }, 430); };
+  const press = (d) => {
+    if (pinBuf.length >= 4) return;
+    pinBuf += d; paint();
+    if (pinBuf.length < 4) return;
+    if (pinBuf === PIN) { localStorage.setItem(PIN_KEY, '1'); document.documentElement.dataset.unlocked = '1'; onOk(); }
+    else fail();
+  };
+  $('lockPad').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+    if (b.hasAttribute('data-back')) { pinBuf = pinBuf.slice(0, -1); paint(); } else press(b.textContent.trim());
+  }));
+  window.addEventListener('keydown', (e) => {
+    if (document.documentElement.dataset.unlocked === '1') return;
+    if (/^[0-9]$/.test(e.key)) press(e.key);
+    else if (e.key === 'Backspace') { pinBuf = pinBuf.slice(0, -1); paint(); }
+  });
+}
+
 /* ------------------------------ arranque ---------------------------- */
 async function main() {
   buildMap();
@@ -722,4 +751,6 @@ function stepPax(d) {
   store.updateGroup(activeId, { pax });
 }
 
-main();
+// arranca já se em demo ou aparelho desbloqueado; senão pede o código primeiro
+if (window.__PREVIEW__ || !locked()) { document.documentElement.dataset.unlocked = '1'; main(); }
+else showLock(main);

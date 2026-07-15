@@ -32,6 +32,7 @@ ${css}</style>
 ${body}
 <script type="module">
 window.__PREVIEW__ = true;
+document.documentElement.dataset.unlocked = '1'; // a demo nunca pede código
 ${js}
 </script>
 `);
