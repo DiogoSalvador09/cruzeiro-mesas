@@ -298,6 +298,23 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 .days-table td:first-child{color:var(--ink-2)}
 .days-table td:not(:first-child),.days-table th:not(:first-child){text-align:right}
 
+.wipe-btn{align-self:center;margin-top:6px;font-size:12.5px;color:var(--ink-3);padding:9px 16px;border-radius:9px;border:1px solid var(--hair);transition:color .15s ease,border-color .15s ease}
+.wipe-btn:hover{color:var(--garnet);border-color:color-mix(in srgb,var(--garnet) 55%,transparent)}
+
+/* ---------- confirmação (limpar tudo) ---------- */
+.confirm-scrim{position:fixed;inset:0;background:rgba(6,8,12,.62);z-index:50;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+.confirm{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:51;
+  background:var(--surface);border:1px solid var(--hair);border-radius:16px;
+  box-shadow:0 22px 64px rgba(0,0,0,.5);padding:22px;width:min(92vw,384px)}
+.confirm:not(.hidden){animation:confirmIn .3s cubic-bezier(.32,.72,.28,1) both}
+@keyframes confirmIn{from{opacity:0;transform:translate(-50%,-46%) scale(.97)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.confirm-title{font-family:var(--num);font-size:25px;font-weight:600;margin-bottom:9px}
+.confirm-body{font-size:14px;color:var(--ink-2);line-height:1.55;margin-bottom:20px}
+.confirm-actions{display:flex;gap:11px}
+.confirm-actions .btn{flex:1;padding:14px}
+.btn.danger{background:var(--garnet);color:var(--garnet-ink)}
+
 /* ---------- folha (bottom sheet) ---------- */
 .sheet-scrim{position:fixed;inset:0;background:rgba(6,8,12,.6);z-index:30;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
 .sheet-scrim:not(.hidden){animation:scrimIn .32s ease both}
@@ -360,7 +377,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;-webki
 /* ---------- movimento reduzido ---------- */
 @media (prefers-reduced-motion: reduce){
   .tile,.tile.wait,.chip.crit,.title h1,.sheet:not(.hidden),.sheet-scrim:not(.hidden),
-  .toast:not(.hidden),body::before,.spotlight.crit .spot-wait{animation:none}
+  .toast:not(.hidden),body::before,.spotlight.crit .spot-wait,.confirm:not(.hidden){animation:none}
 }
 
 /* ---------- ecrã largo (PC do restaurante) ---------- */

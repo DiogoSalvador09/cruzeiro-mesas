@@ -99,6 +99,7 @@
         </table>
         <div id="daysEmpty" class="empty-sub hidden">Ainda não há histórico — aparece a partir de amanhã.</div>
       </div>
+      <button id="wipeBtn" class="wipe-btn">Limpar dados de teste</button>
     </div>
   </section>
 </main>
@@ -171,6 +172,17 @@
 <div class="toast hidden" id="toast">
   <span id="toastMsg"></span>
   <button id="toastUndo" class="toast-undo hidden">Anular</button>
+</div>
+
+<!-- confirmação de limpar tudo -->
+<div class="confirm-scrim hidden" id="confirmScrim"></div>
+<div class="confirm hidden" id="confirmBox" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="confirm-title" id="confirmTitle">Limpar tudo?</div>
+  <div class="confirm-body">Apaga as <b>mesas ativas</b> e <b>todo o histórico</b>. Serve para limpar os testes antes de abrir. Isto <b>não</b> se pode anular.</div>
+  <div class="confirm-actions">
+    <button class="btn ghost" id="confirmCancel">Cancelar</button>
+    <button class="btn danger" id="confirmWipe">Apagar tudo</button>
+  </div>
 </div>
 
 <script type="module" src="app.js"></script>

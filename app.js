@@ -516,6 +516,20 @@ function renderTodayList() {
   $('todayEmpty').classList.toggle('hidden', !!rows.length);
 }
 
+// limpar dados de teste (com confirmação) — repor tudo a zero antes de abrir
+function askWipe() { $('confirmScrim').classList.remove('hidden'); $('confirmBox').classList.remove('hidden'); }
+function closeConfirm() { $('confirmScrim').classList.add('hidden'); $('confirmBox').classList.add('hidden'); }
+async function doWipe() {
+  closeConfirm();
+  await store.clearAll();
+  try {
+    localStorage.removeItem('cz_dine'); // esquece os tempos aprendidos nos testes
+    Object.keys(localStorage).filter((k) => k.startsWith('cz_alerted_')).forEach((k) => localStorage.removeItem(k));
+  } catch { /* nada */ }
+  lastAction = null;
+  toast('Dados de teste apagados — tudo a zero ✓');
+}
+
 async function deleteEntry(id, e, src) {
   const snap = { ...e };
   if (src === 'live') {
@@ -675,6 +689,10 @@ async function main() {
   paintBell();
   $('themeBtn').addEventListener('click', toggleTheme);
   paintTheme();
+  $('wipeBtn').addEventListener('click', askWipe);
+  $('confirmCancel').addEventListener('click', closeConfirm);
+  $('confirmScrim').addEventListener('click', closeConfirm);
+  $('confirmWipe').addEventListener('click', doWipe);
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (!localStorage.getItem('cz_theme')) paintTheme(); });
   $('paxMinus').addEventListener('click', () => stepPax(-1));
   $('paxPlus').addEventListener('click', () => stepPax(1));

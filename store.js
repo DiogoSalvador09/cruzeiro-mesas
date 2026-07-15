@@ -67,6 +67,11 @@ async function firebaseStore(cfg) {
       const s = await get(query(ref(db, 'days'), orderByKey(), limitToLast(n)));
       return s.val() || {};
     },
+    async clearAll() {
+      await remove(ref(db, 'live'));
+      await remove(ref(db, 'days'));
+      try { localStorage.removeItem(MIRROR); } catch { /* nada */ }
+    },
   };
 }
 
@@ -119,6 +124,10 @@ function localStore() {
     async fetchDays(n) {
       const days = read(DAYS);
       return Object.fromEntries(Object.keys(days).sort().slice(-n).map((k) => [k, days[k]]));
+    },
+    async clearAll() {
+      localStorage.removeItem(LIVE); localStorage.removeItem(DAYS);
+      emitLive(); emitToday(); broadcast();
     },
   };
 }
