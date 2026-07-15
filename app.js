@@ -251,8 +251,8 @@ function toggleBell() {
 }
 function paintBell() {
   const b = $('bellBtn');
-  b.textContent = bellOn ? '🔔' : '🔕';
   b.classList.toggle('on', bellOn);
+  b.title = bellOn ? 'Sino ligado — toca aos 10 min sem atendimento' : 'Toca quando uma mesa passa dos 10 min';
 }
 
 function checkAlerts() {

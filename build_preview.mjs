@@ -16,8 +16,10 @@ const stripModules = (src) => src
   .replace(/^import .*?;\s*$/gm, '')   // imports locais (o import() dinâmico do gstatic fica, mas nunca corre sem config)
   .replace(/^export /gm, '');
 
-const js = ['firebase-config.js', 'store.js', 'app.js']
-  .map((f) => stripModules(readFileSync(join(root, f), 'utf8')))
+// O preview NUNCA leva a config real — modo demo local, senão o artifact
+// público escrevia dados fictícios na base de dados do restaurante.
+const js = ['const firebaseConfig = null;', ...['store.js', 'app.js']
+  .map((f) => stripModules(readFileSync(join(root, f), 'utf8')))]
   .join('\n;\n');
 
 let body = html.match(/<body>([\s\S]*)<\/body>/)[1]
