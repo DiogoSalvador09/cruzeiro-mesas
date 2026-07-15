@@ -16,6 +16,10 @@ e a 128 acrescentada à mão), mais as mesas Sala 1–6. O balcão aparece mas n
 Ao registar dá para marcar **🇪🇸 Espanhol / 🇬🇧 Inglês** (opcional — português não precisa),
 e o Rui vê o badge ES/EN na fila antes de ir à mesa.
 
+**Juntar mesas:** na folha de nova entrada, **＋ Juntar outra mesa** → o mapa fica tocável,
+escolhe as mesas, **Concluir ✓**. **Grupos grandes:** **Grupo maior ＋** abre um contador
+até 60 pessoas (o teclado normal vai só até 12).
+
 ## Sincronização (Firebase, grátis)
 
 Sem configuração a app funciona só num aparelho (modo local). Para sincronizar telemóveis + PC:

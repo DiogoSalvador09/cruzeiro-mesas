@@ -21,6 +21,8 @@ let live = {};            // id -> {id, tables[], pax, arrivedAt, attendedAt?}
 let todayLog = {};        // id -> entrada fechada de hoje
 let selection = [];       // mesas escolhidas na nova entrada
 let selLang = null;       // 'es' | 'en' | null (null = português)
+let joining = false;      // modo "juntar mesas" (mapa tocável, folha escondida)
+let bigVal = 14;          // stepper de grupo grande
 const LANG_WORD = { es: 'Espanhol', en: 'Inglês' };
 let activeId = null;      // grupo aberto na folha
 let lastAction = null;    // para o Anular
@@ -98,29 +100,46 @@ function renderMap() {
 
 /* --------------------------- interações ----------------------------- */
 function onTileTap(t) {
-  const g = groupOf(t);
-  if (g) { openGroupSheet(g.id); return; }
-  if (!$('sheet').classList.contains('hidden') && !$('paneNew').classList.contains('hidden')) {
-    // folha de nova entrada aberta → juntar / desjuntar mesas
+  if (joining) {
+    // modo juntar: alterna mesas livres na seleção (ocupadas ignoram-se)
+    if (groupOf(t)) return;
     selection = selection.includes(t) ? selection.filter((x) => x !== t) : [...selection, t];
-    if (!selection.length) { closeSheet(); return; }
-    $('sheetTables').textContent = `Mesa ${tablesLabel(selection)}`;
+    $('joinBarTables').textContent = selection.length ? `Mesa ${tablesLabel(selection)}` : 'toca numa mesa livre';
     renderMap();
     return;
   }
+  const g = groupOf(t);
+  if (g) { openGroupSheet(g.id); return; }
   selection = [t];
-  openNewSheet();
+  openNewSheet(true);
 }
 
-function openNewSheet() {
-  selLang = null;
-  paintLangRow($('langRowNew'), null);
+function openNewSheet(resetLang) {
+  if (resetLang) { selLang = null; bigVal = 14; }
+  paintLangRow($('langRowNew'), selLang);
+  $('bigStepper').classList.add('hidden');
+  $('paxGrid').classList.remove('hidden');
   $('sheetTables').textContent = `Mesa ${tablesLabel(selection)}`;
-  $('sheetSub').textContent = 'Nova entrada';
+  $('sheetSub').textContent = selection.length > 1 ? `${selection.length} mesas juntas` : 'Nova entrada';
   $('paneNew').classList.remove('hidden');
   $('paneGroup').classList.add('hidden');
   showSheet();
   renderMap();
+}
+
+function enterJoinMode() {
+  joining = true;
+  $('sheet').classList.add('hidden');
+  $('scrim').classList.add('hidden');
+  $('joinBar').classList.remove('hidden');
+  $('joinBarTables').textContent = `Mesa ${tablesLabel(selection)}`;
+  renderMap();
+}
+function finishJoinMode() {
+  joining = false;
+  $('joinBar').classList.add('hidden');
+  if (!selection.length) { closeSheet(); return; }
+  openNewSheet(false); // mantém língua já escolhida
 }
 
 function openGroupSheet(id) {
@@ -154,6 +173,7 @@ function renderGroupPane() {
 function showSheet() { $('sheet').classList.remove('hidden'); $('scrim').classList.remove('hidden'); }
 function closeSheet() {
   $('sheet').classList.add('hidden'); $('scrim').classList.add('hidden');
+  $('joinBar').classList.add('hidden'); joining = false;
   selection = []; activeId = null;
   renderMap();
 }
@@ -185,6 +205,17 @@ function buildPaxGrid() {
     b.addEventListener('click', () => confirmNew(n));
     grid.appendChild(b);
   }
+}
+
+function openBigStepper() {
+  $('paxGrid').classList.add('hidden');
+  $('bigStepper').classList.remove('hidden');
+  paintBig();
+}
+function stepBig(d) { bigVal = Math.max(13, Math.min(60, bigVal + d)); paintBig(); }
+function paintBig() {
+  $('bigValue').textContent = bigVal;
+  $('bigConfirm').textContent = `Registar ${paxWord(bigVal)}`;
 }
 
 async function confirmNew(pax) {
@@ -487,6 +518,12 @@ async function main() {
   $('btnAttend').addEventListener('click', () => { const id = activeId; closeSheet(); attend(id); });
   $('btnFree').addEventListener('click', () => { const id = activeId; closeSheet(); freeTable(id); });
   $('btnCancel').addEventListener('click', () => { const id = activeId; closeSheet(); cancelEntry(id); });
+  $('joinBtn').addEventListener('click', enterJoinMode);
+  $('joinDone').addEventListener('click', finishJoinMode);
+  $('moreBtn').addEventListener('click', openBigStepper);
+  $('bigMinus').addEventListener('click', () => stepBig(-1));
+  $('bigPlus').addEventListener('click', () => stepBig(1));
+  $('bigConfirm').addEventListener('click', () => confirmNew(bigVal));
   $('bellBtn').addEventListener('click', toggleBell);
   paintBell();
   $('paxMinus').addEventListener('click', () => stepPax(-1));

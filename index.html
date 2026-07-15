@@ -95,6 +95,12 @@
   </section>
 </main>
 
+<!-- barra de juntar mesas (mapa fica tocável) -->
+<div class="join-bar hidden" id="joinBar">
+  <div class="join-bar-txt">A juntar · <span id="joinBarTables"></span></div>
+  <button id="joinDone" class="join-done">Concluir ✓</button>
+</div>
+
 <!-- ============ FOLHA: NOVA ENTRADA / MESA ============ -->
 <div class="sheet-scrim hidden" id="scrim"></div>
 <div class="sheet hidden" id="sheet" role="dialog" aria-modal="true">
@@ -109,7 +115,7 @@
 
   <!-- new entry: pick pax -->
   <div id="paneNew" class="pane">
-    <div class="hint" id="joinHint">Grupo grande? Toca noutra mesa livre no mapa para juntar.</div>
+    <button class="join-btn" id="joinBtn"><span class="plus">＋</span> Juntar outra mesa</button>
     <div class="lang-block">
       <span class="section-label">Não falam português?</span>
       <div class="lang-row" id="langRowNew">
@@ -117,8 +123,19 @@
         <button class="lang-chip" data-lang="en">🇬🇧 Inglês</button>
       </div>
     </div>
-    <div class="pax-label section-label">Quantas pessoas?</div>
+    <div class="pax-head">
+      <span class="section-label">Quantas pessoas?</span>
+      <button class="more-btn" id="moreBtn">Grupo maior ＋</button>
+    </div>
     <div class="pax-grid" id="paxGrid"></div>
+    <div class="big-stepper hidden" id="bigStepper">
+      <div class="stepper">
+        <button id="bigMinus" aria-label="Menos uma pessoa">−</button>
+        <span id="bigValue" class="pax-value">14</span>
+        <button id="bigPlus" aria-label="Mais uma pessoa">+</button>
+      </div>
+      <button class="btn primary big" id="bigConfirm">Registar 14 pessoas</button>
+    </div>
   </div>
 
   <!-- existing group: actions -->
