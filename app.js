@@ -25,6 +25,7 @@ let selLang = null;       // 'es' | 'en' | null (null = português)
 let joining = false;      // modo "juntar mesas" (mapa tocável, folha escondida)
 let bigVal = 14;          // stepper de grupo grande
 let reseatId = null;      // grupo a arquivar quando o novo for confirmado (sentar novo grupo)
+let movingId = null;      // grupo a trocar de mesa (escolhe o destino no mapa)
 let waitlist = {};        // lista de espera de mesa (id -> {id,name,pax,addedAt,lang?})
 let seatingWait = null;   // a sentar alguém da lista de espera (escolhe mesas no mapa)
 let waitVal = 2;          // contador de pessoas no diálogo de espera
@@ -270,6 +271,14 @@ function onTileTap(t) {
     updateSeatBar(); renderMap();
     return;
   }
+  if (movingId) {
+    // a trocar de mesa: o destino pode ser mesa livre ou uma das do próprio grupo
+    const og = groupOf(t);
+    if (og && og.id !== movingId) return; // ocupada por outro grupo
+    selection = selection.includes(t) ? selection.filter((x) => x !== t) : [...selection, t];
+    updateMoveBar(); renderMap();
+    return;
+  }
   if (joining) {
     // modo juntar: alterna mesas livres na seleção (ocupadas ignoram-se)
     if (groupOf(t)) return;
@@ -310,6 +319,43 @@ function finishJoinMode() {
   $('joinBar').classList.add('hidden');
   if (!selection.length) { closeSheet(); return; }
   openNewSheet(false); // mantém língua já escolhida
+}
+
+/* trocar um grupo de mesa (mudaram-se de lugar; mantém ordem de chegada) */
+function enterMoveMode() {
+  const g = live[activeId]; if (!g) return;
+  movingId = activeId;
+  activeId = null; selection = [];
+  $('sheet').classList.add('hidden');
+  $('scrim').classList.add('hidden');
+  $('moveBar').classList.remove('hidden');
+  updateMoveBar();
+  renderMap();
+}
+function updateMoveBar() {
+  const g = live[movingId]; if (!g) { cancelMove(); return; }
+  $('moveBarTxt').innerHTML = selection.length
+    ? `Mesa ${tablesLabel(g.tables)} → <b>${tablesLabel(selection)}</b>`
+    : `Mesa ${tablesLabel(g.tables)} → <b>toca na mesa nova</b>`;
+}
+async function finishMove() {
+  const g = live[movingId];
+  if (!g || !selection.length) { cancelMove(); return; }
+  const from = sortTables(g.tables || []);
+  const to = sortTables(selection);
+  const id = movingId;
+  movingId = null; selection = [];
+  $('moveBar').classList.add('hidden');
+  if (from.join('|') === to.join('|')) { renderMap(); return; } // ficou igual
+  await store.updateGroup(id, { tables: to });
+  lastAction = { undo: () => store.updateGroup(id, { tables: from }) };
+  toast(`Mesa ${tablesLabel(from)} → ${tablesLabel(to)} ✓`, true);
+  renderMap();
+}
+function cancelMove() {
+  movingId = null; selection = [];
+  $('moveBar').classList.add('hidden');
+  renderMap();
 }
 
 function openGroupSheet(id) {
@@ -354,6 +400,7 @@ function showSheet() { $('sheet').classList.remove('hidden'); $('scrim').classLi
 function closeSheet() {
   $('sheet').classList.add('hidden'); $('scrim').classList.add('hidden');
   $('joinBar').classList.add('hidden'); joining = false;
+  $('moveBar').classList.add('hidden'); movingId = null;
   selection = []; activeId = null; reseatId = null;
   renderMap();
 }
@@ -1016,6 +1063,9 @@ async function main() {
   $('sheetClose').addEventListener('click', closeSheet);
   $('btnAttend').addEventListener('click', () => { const id = activeId; closeSheet(); attend(id); });
   $('btnReseat').addEventListener('click', () => reseatFrom(activeId));
+  $('btnMove').addEventListener('click', enterMoveMode);
+  $('moveDone').addEventListener('click', finishMove);
+  $('moveCancel').addEventListener('click', cancelMove);
   $('btnFree').addEventListener('click', () => { const id = activeId; closeSheet(); freeTable(id); });
   $('btnCancel').addEventListener('click', () => { const id = activeId; closeSheet(); cancelEntry(id); });
   $('joinBtn').addEventListener('click', enterJoinMode);
@@ -1039,6 +1089,7 @@ async function main() {
   window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (tvActive) exitTV();
+    else if (movingId) cancelMove();
     else if (!$('help').classList.contains('hidden')) closeHelp();
   });
   // lista de espera
