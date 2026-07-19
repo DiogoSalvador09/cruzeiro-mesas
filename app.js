@@ -266,7 +266,9 @@ function renderMap() {
 function onTileTap(t) {
   if (editMode) return; // em edição, o tile só remove (pelo ✕); toque no corpo não faz nada
   if (seatingWait) { // a sentar alguém da lista de espera
-    if (groupOf(t)) return; // mesa ocupada
+    const og = groupOf(t);
+    if (og && !og.attendedAt) return; // ocupada por grupo ainda à espera — não mexe
+    // mesa azul (grupo já atendido) pode: ao confirmar, o grupo antigo vai para o histórico
     selection = selection.includes(t) ? selection.filter((x) => x !== t) : [...selection, t];
     updateSeatBar(); renderMap();
     return;
@@ -695,13 +697,18 @@ function hideReady() { $('readyBar').classList.add('hidden'); clearTimeout(ready
 function updateSeatBar() {
   if (!seatingWait) return;
   const who = `${seatingWait.name || 'Grupo'} (${seatingWait.pax}p)`;
-  $('seatBarTxt').innerHTML = selection.length ? `Sentar <b>${who}</b> · Mesa ${tablesLabel(selection)}` : `Escolhe a mesa para <b>${who}</b>`;
+  const swap = selection.some((t) => groupOf(t));
+  $('seatBarTxt').innerHTML = selection.length
+    ? `Sentar <b>${who}</b> · Mesa ${tablesLabel(selection)}${swap ? ' · anterior vai para o histórico' : ''}`
+    : `Escolhe a mesa para <b>${who}</b>`;
 }
 async function confirmSeat() {
   if (!seatingWait || !selection.length) { cancelSeating(); return; }
   const w = seatingWait;
   const g = { id: newId(), tables: sortTables(selection), pax: w.pax, arrivedAt: store.stamp(), ...(w.name ? { name: w.name } : {}), ...(w.lang ? { lang: w.lang } : {}) };
+  const leaving = [...new Map(selection.map((t) => groupOf(t)).filter(Boolean).map((og) => [og.id, og])).values()];
   seatingWait = null; selection = []; $('seatBar').classList.add('hidden');
+  for (const og of leaving) await store.freeGroup({ ...og }, store.stamp()); // mesa azul → grupo anterior para o histórico
   await store.addGroup(g);
   await store.removeWait(w.id);
   toast(`${w.name || 'Grupo'} sentado na Mesa ${tablesLabel(g.tables)} ✓`);
