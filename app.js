@@ -282,10 +282,14 @@ function onTileTap(t) {
     return;
   }
   if (joining) {
-    // modo juntar: alterna mesas livres na seleção (ocupadas ignoram-se)
-    if (groupOf(t)) return;
+    // modo juntar: alterna mesas livres OU já atendidas (azul) na seleção; à espera (garnet) ignora-se
+    const og = groupOf(t);
+    if (og && !og.attendedAt) return;
     selection = selection.includes(t) ? selection.filter((x) => x !== t) : [...selection, t];
-    $('joinBarTables').textContent = selection.length ? `Mesa ${tablesLabel(selection)}` : 'toca numa mesa livre';
+    const swap = selection.some((x) => groupOf(x));
+    $('joinBarTables').textContent = selection.length
+      ? `Mesa ${tablesLabel(selection)}${swap ? ' · mesa azul vai para o histórico' : ''}`
+      : 'toca numa mesa livre';
     renderMap();
     return;
   }
@@ -451,8 +455,13 @@ async function confirmNew(pax) {
   const tables = sortTables(selection);
   const g = { id: newId(), tables, pax, arrivedAt: store.stamp(), ...(selLang ? { lang: selLang } : {}) };
   const oldSnap = reseatId && live[reseatId] ? { ...live[reseatId] } : null;
+  // outras mesas atendidas (azuis) apanhadas ao juntar → também vão para o histórico
+  const otherOld = [...new Map(
+    tables.map((t) => groupOf(t)).filter((og) => og && og.id !== reseatId).map((og) => [og.id, { ...og }]),
+  ).values()];
   closeSheet(); // limpa selection, reseatId, etc.
   if (oldSnap) await store.freeGroup(oldSnap, store.stamp()); // grupo anterior → histórico
+  for (const og of otherOld) await store.freeGroup(og, store.stamp());
   await store.addGroup(g);
   toast(`Mesa ${tablesLabel(tables)} · ${paxWord(pax)}${g.lang ? ` · ${LANG_WORD[g.lang]}` : ''} ✓`);
 }
