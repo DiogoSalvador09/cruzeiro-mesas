@@ -52,6 +52,14 @@ const sortTables = (arr) => [...arr].sort((a, b) => {
 });
 const tablesLabel = (arr) => sortTables(arr).join(' + ');
 const groupOf = (table) => Object.values(live).find((g) => (g.tables || []).includes(table));
+
+// mesas atendidas (azul) apanhadas nestas tables, excluindo o grupo `exceptId` (se estiver a ser reusado) — para
+// arquivar antes de reatribuir (sentar da espera / juntar / trocar de mesa)
+function occupantsToArchive(tables, exceptId) {
+  return [...new Map(
+    tables.map((t) => groupOf(t)).filter((og) => og && og.id !== exceptId).map((og) => [og.id, { ...og }]),
+  ).values()];
+}
 const paxWord = (n) => `${n} ${n === 1 ? 'pessoa' : 'pessoas'}`;
 
 /* ---- tempo à mesa: aprende quanto tempo os grupos ficam (atendida→livre) ---- */
@@ -274,9 +282,9 @@ function onTileTap(t) {
     return;
   }
   if (movingId) {
-    // a trocar de mesa: o destino pode ser mesa livre ou uma das do próprio grupo
+    // a trocar de mesa: destino = mesa livre, mesa do próprio grupo, ou mesa já atendida (azul) doutro grupo
     const og = groupOf(t);
-    if (og && og.id !== movingId) return; // ocupada por outro grupo
+    if (og && og.id !== movingId && !og.attendedAt) return; // à espera doutro grupo — não mexe
     selection = selection.includes(t) ? selection.filter((x) => x !== t) : [...selection, t];
     updateMoveBar(); renderMap();
     return;
@@ -340,8 +348,9 @@ function enterMoveMode() {
 }
 function updateMoveBar() {
   const g = live[movingId]; if (!g) { cancelMove(); return; }
+  const swap = selection.some((x) => { const og = groupOf(x); return og && og.id !== movingId; });
   $('moveBarTxt').innerHTML = selection.length
-    ? `Mesa ${tablesLabel(g.tables)} → <b>${tablesLabel(selection)}</b>`
+    ? `Mesa ${tablesLabel(g.tables)} → <b>${tablesLabel(selection)}</b>${swap ? ' · mesa azul vai para o histórico' : ''}`
     : `Mesa ${tablesLabel(g.tables)} → <b>toca na mesa nova</b>`;
 }
 async function finishMove() {
@@ -350,9 +359,11 @@ async function finishMove() {
   const from = sortTables(g.tables || []);
   const to = sortTables(selection);
   const id = movingId;
+  const displaced = occupantsToArchive(to, id); // mesas de destino já atendidas (azul) doutro grupo → histórico
   movingId = null; selection = [];
   $('moveBar').classList.add('hidden');
   if (from.join('|') === to.join('|')) { renderMap(); return; } // ficou igual
+  for (const og of displaced) await store.freeGroup(og, store.stamp());
   await store.updateGroup(id, { tables: to });
   lastAction = { undo: () => store.updateGroup(id, { tables: from }) };
   toast(`Mesa ${tablesLabel(from)} → ${tablesLabel(to)} ✓`, true);
@@ -455,10 +466,7 @@ async function confirmNew(pax) {
   const tables = sortTables(selection);
   const g = { id: newId(), tables, pax, arrivedAt: store.stamp(), ...(selLang ? { lang: selLang } : {}) };
   const oldSnap = reseatId && live[reseatId] ? { ...live[reseatId] } : null;
-  // outras mesas atendidas (azuis) apanhadas ao juntar → também vão para o histórico
-  const otherOld = [...new Map(
-    tables.map((t) => groupOf(t)).filter((og) => og && og.id !== reseatId).map((og) => [og.id, { ...og }]),
-  ).values()];
+  const otherOld = occupantsToArchive(tables, reseatId); // outras mesas atendidas (azuis) apanhadas ao juntar
   closeSheet(); // limpa selection, reseatId, etc.
   if (oldSnap) await store.freeGroup(oldSnap, store.stamp()); // grupo anterior → histórico
   for (const og of otherOld) await store.freeGroup(og, store.stamp());
@@ -715,7 +723,7 @@ async function confirmSeat() {
   if (!seatingWait || !selection.length) { cancelSeating(); return; }
   const w = seatingWait;
   const g = { id: newId(), tables: sortTables(selection), pax: w.pax, arrivedAt: store.stamp(), ...(w.name ? { name: w.name } : {}), ...(w.lang ? { lang: w.lang } : {}) };
-  const leaving = [...new Map(selection.map((t) => groupOf(t)).filter(Boolean).map((og) => [og.id, og])).values()];
+  const leaving = occupantsToArchive(selection);
   seatingWait = null; selection = []; $('seatBar').classList.add('hidden');
   for (const og of leaving) await store.freeGroup({ ...og }, store.stamp()); // mesa azul → grupo anterior para o histórico
   await store.addGroup(g);

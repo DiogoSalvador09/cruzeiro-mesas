@@ -1,6 +1,6 @@
 // Service worker — guarda a "casca" da app para abrir instantâneo.
 // Os dados vêm sempre do Firebase (nunca são apanhados por esta cache).
-const CACHE = 'cruzeiro-v5';
+const CACHE = 'cruzeiro-v6';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'store.js', 'firebase-config.js', 'manifest.webmanifest', 'assets/icon.png'];
 
 self.addEventListener('install', (e) => {
